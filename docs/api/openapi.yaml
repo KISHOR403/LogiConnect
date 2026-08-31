@@ -1,0 +1,3276 @@
+openapi: 3.0.3
+info:
+  title: LogiConnect Enterprise REST API
+  description: |
+    Enterprise internal communication and collaboration platform for logistics operations.
+    Supports organizational hierarchy, granular RBAC, secure messaging, company broadcasts,
+    document management, meeting coordination, and compliance audit logs.
+  version: 1.0.0
+  contact:
+    name: LogiConnect Architecture Team
+    email: architecture@logiconnect.internal
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local Development Server
+  - url: https://api.logiconnect.internal/api/v1
+    description: Corporate Production Gateway
+
+tags:
+  - name: Authentication
+    description: Login, token rotation, session management, and password lifecycle
+  - name: Users
+    description: User security profile and administrative account management
+  - name: Employees
+    description: HR employee directory, profiles, onboarding, and status transitions
+  - name: Departments
+    description: Corporate departments and departmental hierarchy
+  - name: Teams
+    description: Operational units and logistics hub teams
+  - name: Roles & Permissions
+    description: RBAC role definitions and granular permission assignments
+  - name: Conversations
+    description: Direct 1-to-1 chats and ad-hoc multi-member group rooms
+  - name: Messages
+    description: High-volume message streams with cursor-based pagination
+  - name: Channels
+    description: Organizational channels (Company, Department, Team, Private)
+  - name: Announcements
+    description: Official broadcasts, priority alerts, acknowledgement tracking, and statistics
+  - name: Documents
+    description: SOPs, compliance files, and pre-signed object storage upload handshake
+  - name: Meetings
+    description: Shift syncs, meeting scheduling, and RSVP coordination
+  - name: Calendar
+    description: Aggregated schedule and milestone feed
+  - name: Notifications
+    description: User activity alerts, unread counts, and batch updates
+  - name: Search
+    description: Unified cross-domain search across employees, messages, documents, and notices
+  - name: Admin
+    description: Executive dashboard metrics and system health probes
+  - name: Audit Logs
+    description: Append-only immutable compliance and security audit trail
+
+paths:
+  # ==========================================================================
+  # 1. AUTHENTICATION API
+  # ==========================================================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User Login
+      description: Authenticate user credentials and return JWT access and refresh tokens.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponseEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh Access Token
+      description: Issue a new access token and rotate the refresh token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponseEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Invalidate Session
+      description: Revoke refresh token and terminate current session.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Successfully logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponseVoid'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Current User Profile
+      description: Returns the authenticated user record, employee directory details, roles, and granular permissions.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUserEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+
+  /auth/change-password:
+    post:
+      tags: [Authentication]
+      summary: Change Password
+      description: Change password for currently authenticated user.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponseVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /auth/forgot-password:
+    post:
+      tags: [Authentication]
+      summary: Forgot Password Request
+      description: Request a password reset link.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '200':
+          description: Reset email dispatched if account exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponseVoid'
+
+  /auth/reset-password:
+    post:
+      tags: [Authentication]
+      summary: Reset Password
+      description: Reset account password using verified token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '200':
+          description: Password reset completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponseVoid'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # ==========================================================================
+  # 2. USERS API
+  # ==========================================================================
+  /users:
+    get:
+      tags: [Users]
+      summary: List User Accounts
+      description: Administrative list of user accounts with status and security flags.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, INACTIVE, LOCKED, PENDING_VERIFICATION]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User accounts retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPageEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get User Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetailEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/status:
+    patch:
+      tags: [Users]
+      summary: Update User Status
+      description: Activate, deactivate, or unlock a user account.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserStatusRequest'
+      responses:
+        '200':
+          description: User status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetailEnvelope'
+
+  /users/{id}/roles:
+    get:
+      tags: [Users]
+      summary: Get User Roles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assigned roles retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListEnvelope'
+    put:
+      tags: [Users]
+      summary: Assign Roles to User
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignUserRolesRequest'
+      responses:
+        '200':
+          description: Roles updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleListEnvelope'
+
+  # ==========================================================================
+  # 3. EMPLOYEES API
+  # ==========================================================================
+  /employees:
+    get:
+      tags: [Employees]
+      summary: Directory Search & Employee List
+      description: Search and filter active employee directory with offset pagination.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: teamId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: location
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, PROBATION, ON_LEAVE, SUSPENDED, TERMINATED, RESIGNED]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            example: "lastName,asc"
+      responses:
+        '200':
+          description: Employee directory page
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePageEnvelope'
+    post:
+      tags: [Employees]
+      summary: Onboard New Employee
+      description: Register a new employee profile in corporate directory (HR_ADMIN / SUPER_ADMIN).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetailEnvelope'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /employees/{employeeId}:
+    get:
+      tags: [Employees]
+      summary: Get Employee Profile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Employee profile details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetailEnvelope'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Employees]
+      summary: Update Employee Profile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetailEnvelope'
+
+  /employees/{employeeId}/status:
+    patch:
+      tags: [Employees]
+      summary: Transition Employee Status (Offboarding/Leave)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: employeeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEmployeeStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeeDetailEnvelope'
+
+  # ==========================================================================
+  # 4. DEPARTMENTS API
+  # ==========================================================================
+  /departments:
+    get:
+      tags: [Departments]
+      summary: List Departments
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+      responses:
+        '200':
+          description: List of departments
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentPageEnvelope'
+    post:
+      tags: [Departments]
+      summary: Create Department
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+      responses:
+        '201':
+          description: Department created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentDetailEnvelope'
+
+  /departments/{id}:
+    get:
+      tags: [Departments]
+      summary: Get Department Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentDetailEnvelope'
+    patch:
+      tags: [Departments]
+      summary: Update Department
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDepartmentRequest'
+      responses:
+        '200':
+          description: Department updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentDetailEnvelope'
+
+  /departments/{id}/employees:
+    get:
+      tags: [Departments]
+      summary: List Department Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+      responses:
+        '200':
+          description: Employees in department
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePageEnvelope'
+
+  # ==========================================================================
+  # 5. TEAMS API
+  # ==========================================================================
+  /teams:
+    get:
+      tags: [Teams]
+      summary: List Teams
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: departmentId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of teams
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamPageEnvelope'
+    post:
+      tags: [Teams]
+      summary: Create Team
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTeamRequest'
+      responses:
+        '201':
+          description: Team created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDetailEnvelope'
+
+  /teams/{id}:
+    get:
+      tags: [Teams]
+      summary: Get Team Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Team details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDetailEnvelope'
+    patch:
+      tags: [Teams]
+      summary: Update Team
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTeamRequest'
+      responses:
+        '200':
+          description: Team updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamDetailEnvelope'
+
+  /teams/{id}/employees:
+    get:
+      tags: [Teams]
+      summary: List Team Employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+      responses:
+        '200':
+          description: Employees in team
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmployeePageEnvelope'
+
+  # ==========================================================================
+  # 6. CONVERSATIONS API
+  # ==========================================================================
+  /conversations:
+    get:
+      tags: [Conversations]
+      summary: List User Conversations
+      description: Retrieve user inbox of direct and group chats sorted by last message.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [DIRECT, GROUP]
+      responses:
+        '200':
+          description: Conversations retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationPageEnvelope'
+
+  /conversations/{id}:
+    get:
+      tags: [Conversations]
+      summary: Get Conversation Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Conversation details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /conversations/direct:
+    post:
+      tags: [Conversations]
+      summary: Create or Retrieve Direct Chat
+      description: Deduplicated direct chat initialization with another user.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDirectConversationRequest'
+      responses:
+        '200':
+          description: Existing conversation returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailEnvelope'
+        '201':
+          description: New direct conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailEnvelope'
+
+  /conversations/group:
+    post:
+      tags: [Conversations]
+      summary: Create Group Chat
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGroupConversationRequest'
+      responses:
+        '201':
+          description: Group conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailEnvelope'
+
+  /conversations/{id}/members:
+    get:
+      tags: [Conversations]
+      summary: List Conversation Members
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Members list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMemberListEnvelope'
+    post:
+      tags: [Conversations]
+      summary: Add Members to Group Conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddConversationMembersRequest'
+      responses:
+        '200':
+          description: Members added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationMemberListEnvelope'
+
+  /conversations/{id}/members/{userId}:
+    delete:
+      tags: [Conversations]
+      summary: Remove Member / Leave Conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Member removed successfully
+
+  # ==========================================================================
+  # 7. MESSAGES API
+  # ==========================================================================
+  /conversations/{id}/messages:
+    get:
+      tags: [Messages]
+      summary: Get Conversation Message Stream (Cursor Paginated)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/DirectionQuery'
+      responses:
+        '200':
+          description: Message stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageCursorEnvelope'
+    post:
+      tags: [Messages]
+      summary: Send Message in Conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message posted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetailEnvelope'
+
+  /channels/{id}/messages:
+    get:
+      tags: [Messages]
+      summary: Get Channel Message Stream (Cursor Paginated)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CursorQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/DirectionQuery'
+      responses:
+        '200':
+          description: Channel message stream
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageCursorEnvelope'
+    post:
+      tags: [Messages]
+      summary: Send Message in Channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message posted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetailEnvelope'
+
+  /messages/{id}:
+    patch:
+      tags: [Messages]
+      summary: Edit Message Text
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditMessageRequest'
+      responses:
+        '200':
+          description: Message edited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetailEnvelope'
+    delete:
+      tags: [Messages]
+      summary: Soft Delete Message
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Message soft deleted
+
+  # ==========================================================================
+  # 8. CHANNELS API
+  # ==========================================================================
+  /channels:
+    get:
+      tags: [Channels]
+      summary: List Accessible Channels
+      description: Returns company, department, and team channels based on user's assignment.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [COMPANY, DEPARTMENT, TEAM, PRIVATE]
+      responses:
+        '200':
+          description: Channels retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelPageEnvelope'
+    post:
+      tags: [Channels]
+      summary: Create Channel
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelRequest'
+      responses:
+        '201':
+          description: Channel created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDetailEnvelope'
+
+  /channels/{id}:
+    get:
+      tags: [Channels]
+      summary: Get Channel Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Channel details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDetailEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Channels]
+      summary: Update Channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChannelRequest'
+      responses:
+        '200':
+          description: Channel updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelDetailEnvelope'
+    delete:
+      tags: [Channels]
+      summary: Archive Channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Channel archived
+
+  /channels/{id}/members:
+    get:
+      tags: [Channels]
+      summary: List Channel Members
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Channel members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMemberListEnvelope'
+    post:
+      tags: [Channels]
+      summary: Add Members to Channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddChannelMembersRequest'
+      responses:
+        '200':
+          description: Members added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelMemberListEnvelope'
+
+  /channels/{id}/members/{userId}:
+    delete:
+      tags: [Channels]
+      summary: Remove Member / Leave Channel
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Member removed
+
+  # ==========================================================================
+  # 9. ANNOUNCEMENTS API
+  # ==========================================================================
+  /announcements:
+    get:
+      tags: [Announcements]
+      summary: List Announcements
+      description: Paginated broadcast feed targeted to current user.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
+        - name: isAcknowledged
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Announcements list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementPageEnvelope'
+    post:
+      tags: [Announcements]
+      summary: Draft Announcement
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAnnouncementRequest'
+      responses:
+        '201':
+          description: Announcement drafted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+
+  /announcements/{id}:
+    get:
+      tags: [Announcements]
+      summary: Get Announcement Details (Records Read)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Announcement details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+    patch:
+      tags: [Announcements]
+      summary: Update Announcement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnouncementRequest'
+      responses:
+        '200':
+          description: Announcement updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+
+  /announcements/{id}/publish:
+    post:
+      tags: [Announcements]
+      summary: Publish Announcement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Announcement published and dispatched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+
+  /announcements/{id}/acknowledge:
+    post:
+      tags: [Announcements]
+      summary: Acknowledge Announcement (Idempotent)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Acknowledgement registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementAcknowledgementEnvelope'
+
+  /announcements/{id}/statistics:
+    get:
+      tags: [Announcements]
+      summary: Get Announcement Compliance Statistics
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Statistics report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementStatisticsEnvelope'
+
+  # ==========================================================================
+  # 10. DOCUMENTS API
+  # ==========================================================================
+  /documents:
+    get:
+      tags: [Documents]
+      summary: List Documents
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: visibility
+          in: query
+          schema:
+            type: string
+            enum: [PUBLIC, INTERNAL, DEPARTMENT, TEAM, CONFIDENTIAL]
+      responses:
+        '200':
+          description: Documents list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentPageEnvelope'
+
+  /documents/{id}:
+    get:
+      tags: [Documents]
+      summary: Get Document & Pre-Signed Download URL
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Document details with download link
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailEnvelope'
+    patch:
+      tags: [Documents]
+      summary: Update Document Metadata
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDocumentRequest'
+      responses:
+        '200':
+          description: Document updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailEnvelope'
+    delete:
+      tags: [Documents]
+      summary: Delete/Archive Document
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Document archived
+
+  /documents/upload-intent:
+    post:
+      tags: [Documents]
+      summary: Request Pre-Signed Upload URL (Handshake Step 1)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUploadIntentRequest'
+      responses:
+        '200':
+          description: Upload intent registered, pre-signed URL returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentUploadIntentEnvelope'
+
+  /documents/{id}/complete-upload:
+    post:
+      tags: [Documents]
+      summary: Complete Upload & Activate (Handshake Step 2)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Upload confirmed and document activated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentDetailEnvelope'
+
+  # ==========================================================================
+  # 11. MEETINGS & CALENDAR API
+  # ==========================================================================
+  /meetings:
+    get:
+      tags: [Meetings]
+      summary: List Meetings
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Meetings list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingPageEnvelope'
+    post:
+      tags: [Meetings]
+      summary: Schedule Meeting
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeetingRequest'
+      responses:
+        '201':
+          description: Meeting scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetailEnvelope'
+
+  /meetings/{id}:
+    get:
+      tags: [Meetings]
+      summary: Get Meeting Details
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Meeting details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetailEnvelope'
+    patch:
+      tags: [Meetings]
+      summary: Reschedule / Update Meeting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeetingRequest'
+      responses:
+        '200':
+          description: Meeting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingDetailEnvelope'
+    delete:
+      tags: [Meetings]
+      summary: Cancel Meeting
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Meeting cancelled
+
+  /meetings/{id}/participants:
+    post:
+      tags: [Meetings]
+      summary: Invite Participants
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMeetingParticipantsRequest'
+      responses:
+        '200':
+          description: Participants invited
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingParticipantListEnvelope'
+
+  /meetings/{id}/participants/{userId}:
+    delete:
+      tags: [Meetings]
+      summary: Remove Participant
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Participant removed
+
+  /meetings/{id}/participants/{userId}/response:
+    patch:
+      tags: [Meetings]
+      summary: Submit RSVP Response
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MeetingRsvpRequest'
+      responses:
+        '200':
+          description: RSVP updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeetingParticipantEnvelope'
+
+  /calendar/events:
+    get:
+      tags: [Calendar]
+      summary: Aggregated Calendar Feed
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Calendar events list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalendarEventListEnvelope'
+
+  # ==========================================================================
+  # 12. NOTIFICATIONS API
+  # ==========================================================================
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List User Notifications
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: isRead
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Notification feed with unread count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListEnvelope'
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark Single Notification Read
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationEnvelope'
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark All Notifications Read
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardResponseVoid'
+
+  # ==========================================================================
+  # 13. SEARCH API
+  # ==========================================================================
+  /search:
+    get:
+      tags: [Search]
+      summary: Unified Enterprise Search
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [all, employees, messages, announcements, documents, channels, meetings]
+            default: all
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Categorized search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResultsEnvelope'
+
+  # ==========================================================================
+  # 14. ADMIN & AUDIT API
+  # ==========================================================================
+  /admin/dashboard:
+    get:
+      tags: [Admin]
+      summary: Executive Dashboard Telemetry
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: System statistics and metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboardEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/system/health:
+    get:
+      tags: [Admin]
+      summary: Infrastructure Health Probe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Health details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealthEnvelope'
+
+  /admin/audit-logs:
+    get:
+      tags: [Audit Logs]
+      summary: Search Immutable Audit Logs
+      description: Strictly read-only compliance query endpoint.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/SizeQuery'
+        - name: actorId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: entityType
+          in: query
+          schema:
+            type: string
+        - name: entityId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Audit log records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditLogPageEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ============================================================================
+# COMPONENTS & SCHEMAS
+# ============================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    PageQuery:
+      name: page
+      in: query
+      description: 0-indexed page number
+      schema:
+        type: integer
+        default: 0
+    SizeQuery:
+      name: size
+      in: query
+      description: Items per page (max 100)
+      schema:
+        type: integer
+        default: 20
+        maximum: 100
+    CursorQuery:
+      name: cursor
+      in: query
+      description: Base64-encoded time pointer
+      schema:
+        type: string
+    LimitQuery:
+      name: limit
+      in: query
+      description: Stream fetch limit
+      schema:
+        type: integer
+        default: 50
+        maximum: 100
+    DirectionQuery:
+      name: direction
+      in: query
+      description: Cursor stream direction
+      schema:
+        type: string
+        enum: [BEFORE, AFTER]
+        default: BEFORE
+
+  responses:
+    BadRequest:
+      description: Bad Request / Malformed Syntax
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthenticated:
+      description: Authentication Missing or Expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Insufficient Role / Unauthorized Resource Access
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Target Resource Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource Conflict (Unique Key Violation)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Semantic Payload Validation Failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # Standard Envelopes
+    StandardResponseVoid:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          nullable: true
+        message:
+          type: string
+          example: "Operation successful"
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: "VALIDATION_FAILED"
+            message:
+              type: string
+              example: "Provided payload violates validation constraints"
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field:
+                    type: string
+                  rejectedValue:
+                    type: string
+                  issue:
+                    type: string
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-08-31T12:00:00Z"
+        path:
+          type: string
+          example: "/api/v1/employees"
+
+    PaginationMetadata:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+        hasNext:
+          type: boolean
+        hasPrevious:
+          type: boolean
+
+    CursorMetadata:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          nullable: true
+        prevCursor:
+          type: string
+          nullable: true
+        hasMore:
+          type: boolean
+        limit:
+          type: integer
+
+    # Auth Schemas
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: "priya.sharma@logiconnect.internal"
+        password:
+          type: string
+          example: "SecurePassword@123"
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+
+    AuthTokenResponseEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            tokenType:
+              type: string
+              example: "Bearer"
+            expiresIn:
+              type: integer
+              example: 900
+            user:
+              $ref: '#/components/schemas/CurrentUserDto'
+        message:
+          type: string
+
+    CurrentUserDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employeeId:
+          type: string
+          format: uuid
+        employeeCode:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        designation:
+          type: string
+        departmentName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        permissions:
+          type: array
+          items:
+            type: string
+
+    CurrentUserEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/CurrentUserDto'
+        message:
+          type: string
+
+    # Employee Schemas
+    CreateEmployeeRequest:
+      type: object
+      required: [employeeCode, firstName, lastName, email, designation, departmentId, location, joiningDate]
+      properties:
+        employeeCode:
+          type: string
+          example: "EMP-1006"
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        designation:
+          type: string
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        managerId:
+          type: string
+          format: uuid
+        location:
+          type: string
+        joiningDate:
+          type: string
+          format: date
+
+    UpdateEmployeeRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+        profilePhotoUrl:
+          type: string
+        designation:
+          type: string
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        managerId:
+          type: string
+          format: uuid
+        location:
+          type: string
+
+    UpdateEmployeeStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, PROBATION, ON_LEAVE, SUSPENDED, TERMINATED, RESIGNED]
+        exitDate:
+          type: string
+          format: date
+        reason:
+          type: string
+
+    EmployeeSummaryDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employeeCode:
+          type: string
+        fullName:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        profilePhotoUrl:
+          type: string
+        designation:
+          type: string
+        departmentName:
+          type: string
+        teamName:
+          type: string
+        location:
+          type: string
+        status:
+          type: string
+
+    EmployeeDetailDto:
+      allOf:
+        - $ref: '#/components/schemas/EmployeeSummaryDto'
+        - type: object
+          properties:
+            departmentId:
+              type: string
+              format: uuid
+            teamId:
+              type: string
+              format: uuid
+            managerId:
+              type: string
+              format: uuid
+            managerName:
+              type: string
+            joiningDate:
+              type: string
+              format: date
+            exitDate:
+              type: string
+              format: date
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    EmployeePageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/EmployeeSummaryDto'
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    EmployeeDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/EmployeeDetailDto'
+        message:
+          type: string
+
+    # Messages Schemas
+    SendMessageRequest:
+      type: object
+      required: [messageType]
+      properties:
+        messageType:
+          type: string
+          enum: [TEXT, FILE, IMAGE, SYSTEM, LOCATION, AUDIO, VIDEO]
+        content:
+          type: string
+        replyToMessageId:
+          type: string
+          format: uuid
+        attachments:
+          type: array
+          items:
+            type: object
+            required: [storageKey, fileUrl, fileName, fileType, fileSize]
+            properties:
+              storageKey:
+                type: string
+              fileUrl:
+                type: string
+              fileName:
+                type: string
+              fileType:
+                type: string
+              fileSize:
+                type: integer
+                format: int64
+
+    EditMessageRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+
+    MessageDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        conversationId:
+          type: string
+          format: uuid
+          nullable: true
+        channelId:
+          type: string
+          format: uuid
+          nullable: true
+        sender:
+          type: object
+          properties:
+            userId:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+            designation:
+              type: string
+            profilePhotoUrl:
+              type: string
+        messageType:
+          type: string
+        content:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: object
+        isPinned:
+          type: boolean
+        isEdited:
+          type: boolean
+        isDeleted:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        editedAt:
+          type: string
+          format: date-time
+
+    MessageCursorEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/MessageDto'
+            cursor:
+              $ref: '#/components/schemas/CursorMetadata'
+        message:
+          type: string
+
+    MessageDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/MessageDto'
+        message:
+          type: string
+
+    # Announcements Schemas
+    CreateAnnouncementRequest:
+      type: object
+      required: [title, content, priority, audienceType]
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        priority:
+          type: string
+          enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
+        audienceType:
+          type: string
+          enum: [ALL, DEPARTMENT, TEAM, ROLE, INDIVIDUAL, ALL_EMPLOYEES]
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        targetRoleId:
+          type: string
+          format: uuid
+        targetLocation:
+          type: string
+        requiresAcknowledgement:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+
+    UpdateAnnouncementRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: string
+        priority:
+          type: string
+          enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
+        expiresAt:
+          type: string
+          format: date-time
+
+    AnnouncementDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: string
+        author:
+          type: object
+          properties:
+            userId:
+              type: string
+              format: uuid
+            fullName:
+              type: string
+        priority:
+          type: string
+        audienceType:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        requiresAcknowledgement:
+          type: boolean
+        isRead:
+          type: boolean
+        isAcknowledged:
+          type: boolean
+        acknowledgedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+
+    AnnouncementPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AnnouncementDto'
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    AnnouncementDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/AnnouncementDto'
+        message:
+          type: string
+
+    AnnouncementAcknowledgementEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            announcementId:
+              type: string
+              format: uuid
+            userId:
+              type: string
+              format: uuid
+            acknowledgedAt:
+              type: string
+              format: date-time
+        message:
+          type: string
+
+    AnnouncementStatisticsEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            announcementId:
+              type: string
+              format: uuid
+            totalTargeted:
+              type: integer
+            readCount:
+              type: integer
+            acknowledgedCount:
+              type: integer
+            acknowledgedPercentage:
+              type: number
+              format: double
+            unacknowledgedEmployees:
+              type: array
+              items:
+                $ref: '#/components/schemas/EmployeeSummaryDto'
+        message:
+          type: string
+
+    # Document Schemas
+    DocumentUploadIntentRequest:
+      type: object
+      required: [name, fileName, fileType, fileSize, checksum, visibility]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        fileName:
+          type: string
+        fileType:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        checksum:
+          type: string
+        visibility:
+          type: string
+          enum: [PUBLIC, INTERNAL, DEPARTMENT, TEAM, CONFIDENTIAL]
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+
+    DocumentUploadIntentEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            documentId:
+              type: string
+              format: uuid
+            storageKey:
+              type: string
+            uploadUrl:
+              type: string
+            requiredHeaders:
+              type: object
+              additionalProperties:
+                type: string
+            expiresAt:
+              type: string
+              format: date-time
+        message:
+          type: string
+
+    DocumentDetailDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        fileName:
+          type: string
+        fileType:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        downloadUrl:
+          type: string
+        visibility:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    DocumentPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/DocumentDetailDto'
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    DocumentDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/DocumentDetailDto'
+        message:
+          type: string
+
+    UpdateDocumentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        visibility:
+          type: string
+          enum: [PUBLIC, INTERNAL, DEPARTMENT, TEAM, CONFIDENTIAL]
+
+    # Additional Envelopes and Placeholders
+    UserPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    UserDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    UpdateUserStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, LOCKED, PENDING_VERIFICATION]
+        reason:
+          type: string
+
+    RoleListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        message:
+          type: string
+
+    AssignUserRolesRequest:
+      type: object
+      required: [roleIds]
+      properties:
+        roleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    DepartmentPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    DepartmentDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    CreateDepartmentRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        managerId:
+          type: string
+          format: uuid
+
+    UpdateDepartmentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        managerId:
+          type: string
+          format: uuid
+
+    TeamPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    TeamDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    CreateTeamRequest:
+      type: object
+      required: [departmentId, code, name]
+      properties:
+        departmentId:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        teamLeadId:
+          type: string
+          format: uuid
+
+    UpdateTeamRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        teamLeadId:
+          type: string
+          format: uuid
+
+    ConversationPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    ConversationDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    CreateDirectConversationRequest:
+      type: object
+      required: [targetUserId]
+      properties:
+        targetUserId:
+          type: string
+          format: uuid
+
+    CreateGroupConversationRequest:
+      type: object
+      required: [name, memberUserIds]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        avatarUrl:
+          type: string
+        memberUserIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    ConversationMemberListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        message:
+          type: string
+
+    AddConversationMembersRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    ChannelPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    ChannelDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    CreateChannelRequest:
+      type: object
+      required: [name, slug, type]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [COMPANY, DEPARTMENT, TEAM, PRIVATE]
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        isReadOnly:
+          type: boolean
+
+    UpdateChannelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        isReadOnly:
+          type: boolean
+
+    ChannelMemberListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        message:
+          type: string
+
+    AddChannelMembersRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        role:
+          type: string
+          enum: [MEMBER, MODERATOR]
+
+    MeetingPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    MeetingDetailEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    CreateMeetingRequest:
+      type: object
+      required: [title, startTime, endTime, participantUserIds]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        location:
+          type: string
+        meetingLink:
+          type: string
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        participantUserIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    UpdateMeetingRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        location:
+          type: string
+        meetingLink:
+          type: string
+
+    AddMeetingParticipantsRequest:
+      type: object
+      required: [userIds]
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+
+    MeetingParticipantListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        message:
+          type: string
+
+    MeetingParticipantEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    MeetingRsvpRequest:
+      type: object
+      required: [response]
+      properties:
+        response:
+          type: string
+          enum: [ACCEPTED, DECLINED, TENTATIVE]
+
+    CalendarEventListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+        message:
+          type: string
+
+    NotificationListEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            unreadCount:
+              type: integer
+            items:
+              type: array
+              items:
+                type: object
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    NotificationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+        message:
+          type: string
+
+    SearchResultsEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            employees:
+              type: array
+              items:
+                $ref: '#/components/schemas/EmployeeSummaryDto'
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/MessageDto'
+            announcements:
+              type: array
+              items:
+                $ref: '#/components/schemas/AnnouncementDto'
+            documents:
+              type: array
+              items:
+                $ref: '#/components/schemas/DocumentDetailDto'
+        message:
+          type: string
+
+    AdminDashboardEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            activeUsersCount:
+              type: integer
+            totalEmployeesCount:
+              type: integer
+            messageThroughput24h:
+              type: integer
+            unacknowledgedUrgentAnnouncementsCount:
+              type: integer
+            storageUsageBytes:
+              type: integer
+              format: int64
+            systemHealthStatus:
+              type: string
+        message:
+          type: string
+
+    SystemHealthEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            status:
+              type: string
+            dbLatencyMs:
+              type: integer
+            storageStatus:
+              type: string
+            activeSessions:
+              type: integer
+        message:
+          type: string
+
+    AuditLogPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  actor:
+                    type: object
+                  action:
+                    type: string
+                  entityType:
+                    type: string
+                  entityId:
+                    type: string
+                    format: uuid
+                  ipAddress:
+                    type: string
+                  userAgent:
+                    type: string
+                  metadata:
+                    type: object
+                  createdAt:
+                    type: string
+                    format: date-time
+            pagination:
+              $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
