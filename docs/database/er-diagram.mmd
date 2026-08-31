@@ -236,13 +236,16 @@ erDiagram
         uuid id PK
         varchar title
         text content
+        varchar type
         uuid created_by FK
+        uuid published_by FK
         varchar priority
         varchar audience_type
         uuid department_id FK
         uuid team_id FK
         varchar target_location
         uuid target_role_id FK
+        timestamptz scheduled_at
         timestamptz published_at
         timestamptz expires_at
         boolean requires_acknowledgement
@@ -257,6 +260,8 @@ erDiagram
         uuid user_id FK
         timestamptz read_at
         timestamptz acknowledged_at
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     DOCUMENTS {

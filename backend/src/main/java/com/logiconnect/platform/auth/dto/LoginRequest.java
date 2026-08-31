@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
 public class LoginRequest {
 
     @NotBlank(message = "Login identifier (employee code or email) is required")
-    @JsonAlias({"email", "username", "loginId"})
+    @JsonAlias({"email", "username", "loginId", "usernameOrEmail"})
     private String employeeCode;
 
     @NotBlank(message = "Password is required")

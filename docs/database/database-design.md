@@ -258,30 +258,34 @@ Rich media files, PDF delivery manifests, and images attached to messages (metad
 ### Domain 4: Company Broadcasts & Announcements (2 Tables)
 
 #### `announcements`
-Top-down enterprise broadcasts, health & safety notices, operational alerts.
-- `id` (UUID, PK).
-- `title` (VARCHAR(255), NOT NULL).
-- `content` (TEXT, NOT NULL).
-- `created_by` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE RESTRICT).
-- `priority` (VARCHAR(20), NOT NULL, DEFAULT `'NORMAL'`): `'NORMAL'`, `'IMPORTANT'`, `'URGENT'`, `'EMERGENCY'`.
-- `audience_type` (VARCHAR(30), NOT NULL, DEFAULT `'ALL'`): `'ALL'`, `'DEPARTMENT'`, `'TEAM'`, `'ROLE'`, `'INDIVIDUAL'`, `'ALL_EMPLOYEES'`.
-- `department_id` (UUID, FK &rarr; `departments.id` ON DELETE SET NULL).
-- `team_id` (UUID, FK &rarr; `teams.id` ON DELETE SET NULL).
-- `target_role_id` (UUID, FK &rarr; `roles.id` ON DELETE SET NULL).
+Top-down enterprise broadcasts, health & safety notices, operational alerts, and compliance communications.
+- `id` (UUID, PK): Unique announcement identifier.
+- `title` (VARCHAR(255), NOT NULL): Broadcast subject / headline.
+- `content` (TEXT, NOT NULL): Full announcement text body / markdown.
+- `type` (VARCHAR(30), NOT NULL, DEFAULT `'GENERAL'`): Category constraint (`'GENERAL'`, `'HR'`, `'OPERATIONS'`, `'SAFETY'`, `'POLICY'`, `'EMERGENCY'`, `'MAINTENANCE'`).
+- `priority` (VARCHAR(20), NOT NULL, DEFAULT `'NORMAL'`): `'NORMAL'`, `'HIGH'`, `'IMPORTANT'`, `'URGENT'`, `'EMERGENCY'`.
+- `audience_type` (VARCHAR(30), NOT NULL, DEFAULT `'ALL'`): Target classification (`'COMPANY'`, `'ALL'`, `'DEPARTMENT'`, `'TEAM'`, `'ROLE'`, `'INDIVIDUAL'`, `'ALL_EMPLOYEES'`).
+- `department_id` (UUID, FK &rarr; `departments.id` ON DELETE SET NULL): Scoped department.
+- `team_id` (UUID, FK &rarr; `teams.id` ON DELETE SET NULL): Scoped team.
+- `target_role_id` (UUID, FK &rarr; `roles.id` ON DELETE SET NULL): Scoped role.
 - `target_location` (VARCHAR(100)): Target specific logistics hub or regional office.
+- `requires_acknowledgement` (BOOLEAN, NOT NULL, DEFAULT FALSE): Mandatory employee sign-off flag.
+- `scheduled_at` (TIMESTAMPTZ): Future scheduled publication time.
 - `published_at` (TIMESTAMPTZ): Broadcast publication timestamp.
 - `expires_at` (TIMESTAMPTZ): Auto-archival cutoff.
-- `requires_acknowledgement` (BOOLEAN, NOT NULL, DEFAULT FALSE): Mandatory employee sign-off flag.
-- `status` (VARCHAR(20), NOT NULL, DEFAULT `'DRAFT'`): `'DRAFT'`, `'PUBLISHED'`, `'ARCHIVED'`, `'CANCELLED'`.
+- `status` (VARCHAR(20), NOT NULL, DEFAULT `'DRAFT'`): `'DRAFT'`, `'SCHEDULED'`, `'PUBLISHED'`, `'ARCHIVED'`, `'CANCELLED'`.
+- `created_by` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE RESTRICT): Announcement author.
+- `published_by` (UUID, FK &rarr; `users.id` ON DELETE SET NULL): User who executed publication.
 - `created_at` / `updated_at` (TIMESTAMPTZ, NOT NULL).
 
 #### `announcement_reads`
 Non-repudiation audit table tracking who read and acknowledged official notices.
-- `id` (UUID, PK).
+- `id` (UUID, PK): Unique read tracking record identifier.
 - `announcement_id` (UUID, NOT NULL, FK &rarr; `announcements.id` ON DELETE CASCADE).
 - `user_id` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE CASCADE).
-- `read_at` (TIMESTAMPTZ, NOT NULL, DEFAULT CURRENT_TIMESTAMP).
+- `read_at` (TIMESTAMPTZ, NOT NULL, DEFAULT CURRENT_TIMESTAMP): Immutable read timestamp.
 - `acknowledged_at` (TIMESTAMPTZ): Explicit acknowledgement timestamp.
+- `created_at` / `updated_at` (TIMESTAMPTZ, NOT NULL): Managed by DB triggers.
 - **Constraints**: `UNIQUE (announcement_id, user_id)` (Guarantees exactly one record per employee per notice).
 
 ---
@@ -455,7 +459,7 @@ Announcements support granular targeting without bloated recipient tables:
 
 ## 8. Authoritative File Locations
 
-- **Flyway Relational Schema Migration**: `backend/src/main/resources/db/migration/V1__initial_schema.sql`
+- **Flyway Relational Schema Migration**: `backend/src/main/resources/db/migration/V1__initial_schema.sql` through `V7__notifications.sql`
 - **Development Seed Data**: `database/seeds/development/seed_data.sql`
 - **Mermaid ER Diagram**: `docs/database/er-diagram.mmd`
 - **Architecture Documentation**: `docs/database/database-design.md`

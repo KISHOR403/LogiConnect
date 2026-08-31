@@ -640,66 +640,100 @@ Workspaces aligned with organizational hierarchy (Company, Department, Team, Pri
 
 ### Domain 10: Announcements API (`/api/v1/announcements`)
 
-Corporate broadcasts, emergency operational alerts, non-repudiation tracking, and compliance stats.
+Official company broadcasts, department/team notices, emergency alerts, scheduling, safe cancellation, non-repudiation tracking, and compliance stats.
 
 #### 10.1 GET `/api/v1/announcements`
-- **Purpose**: Retrieve paginated feed of published announcements targeted to current employee.
+- **Purpose**: Retrieve paginated feed of announcements visible to current authenticated employee based on active targeting scope.
 - **Authentication**: Bearer Token
-- **Authorization**: Authenticated User
+- **Authorization**: Authenticated Active Employee
 - **Query Parameters**:
+  - `type` (`GENERAL`, `HR`, `OPERATIONS`, `SAFETY`, `POLICY`, `EMERGENCY`, `MAINTENANCE`)
+  - `status` (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `CANCELLED`, `ARCHIVED` - non-admins only see `PUBLISHED`)
+  - `search` (string, title filter)
   - `page` (int, default: 0)
-  - `size` (int, default: 20)
-  - `priority` (`NORMAL`, `IMPORTANT`, `URGENT`, `EMERGENCY`)
-  - `isAcknowledged` (boolean: filter by user's acknowledgement status)
-  - `status` (`PUBLISHED`, `DRAFT`, `ARCHIVED` - `DRAFT` only visible to authors/admins)
-- **Response**: `200 OK` with `PageResponse<AnnouncementSummaryResponse>`
+  - `size` (int, default: 20, max: 100)
+- **Response**: `200 OK` with `PageResponse<AnnouncementResponse>`
 
 #### 10.2 GET `/api/v1/announcements/{id}`
-- **Purpose**: View announcement details. Automatically records/updates `read_at` in `announcement_reads`.
+- **Purpose**: View announcement details. Automatically records/updates `read_at` in `announcement_reads` if status is `PUBLISHED`.
 - **Authentication**: Bearer Token
 - **Authorization**: Target Audience Member or Author/Admin
 - **Path Parameters**: `id` (UUID)
-- **Response**: `200 OK` with `AnnouncementDetailResponse` (includes user's `isRead`, `isAcknowledged`, `acknowledgedAt`)
-- **Error Codes**: `403 UNAUTHORIZED`, `404 RESOURCE_NOT_FOUND`
+- **Response**: `200 OK` with `AnnouncementResponse` (includes user's `read`, `readAt`, `acknowledged`, `acknowledgedAt`)
+- **Error Codes**: `403 FORBIDDEN`, `404 RESOURCE_NOT_FOUND`
 
 #### 10.3 POST `/api/v1/announcements`
-- **Purpose**: Draft an enterprise announcement.
+- **Purpose**: Create a new draft or scheduled announcement with strict server-side targeting authorization checks.
 - **Authentication**: Bearer Token
-- **Authorization**: `CREATE_ANNOUNCEMENT` (SUPER_ADMIN, HR_ADMIN, MANAGER for own dept, TEAM_LEADER for own team)
-- **Request Body**: `CreateAnnouncementRequest` (title, content, priority, audienceType: `ALL`, `DEPARTMENT`, `TEAM`, `ROLE`, `INDIVIDUAL`, departmentId, teamId, targetRoleId, targetLocation, requiresAcknowledgement, expiresAt)
-- **Response**: `201 CREATED` with `AnnouncementDetailResponse`
+- **Authorization**: `SUPER_ADMIN`, `HR_ADMIN`, Department Manager (for own dept), Team Leader (for own team)
+- **Request Body**: `CreateAnnouncementRequest` (title, content, type, priority, targetType: `COMPANY`, `DEPARTMENT`, `TEAM`, departmentId, teamId, requiresAcknowledgement, scheduledAt, expiresAt)
+- **Response**: `201 CREATED` with `AnnouncementResponse`
+- **Error Codes**: `400 BAD_REQUEST`, `403 FORBIDDEN`
 
-#### 10.4 PATCH `/api/v1/announcements/{id}`
-- **Purpose**: Update an announcement draft or published notice.
+#### 10.4 PUT `/api/v1/announcements/{id}`
+- **Purpose**: Update announcement draft or scheduled notice before publication. Published/cancelled/archived notices are immutable.
 - **Authentication**: Bearer Token
-- **Authorization**: `EDIT_ANNOUNCEMENT` (Author, HR_ADMIN, SUPER_ADMIN)
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN`
 - **Path Parameters**: `id` (UUID)
 - **Request Body**: `UpdateAnnouncementRequest`
-- **Response**: `200 OK` with `AnnouncementDetailResponse`
+- **Response**: `200 OK` with `AnnouncementResponse`
+- **Error Codes**: `400 BAD_REQUEST`, `403 FORBIDDEN`, `404 RESOURCE_NOT_FOUND`
 
 #### 10.5 POST `/api/v1/announcements/{id}/publish`
-- **Purpose**: Publish draft announcement and dispatch push/in-app notifications to target audience.
+- **Purpose**: Publish draft or scheduled announcement immediately and generate `ANNOUNCEMENT_PUBLISHED` audit log.
 - **Authentication**: Bearer Token
-- **Authorization**: `CREATE_ANNOUNCEMENT` or `EDIT_ANNOUNCEMENT`
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN` (with re-checked targeting permissions)
 - **Path Parameters**: `id` (UUID)
-- **Response**: `200 OK` with `AnnouncementDetailResponse`
-- **Error Codes**: `412 PRECONDITION_FAILED` (Already published or archived)
+- **Response**: `200 OK` with `AnnouncementResponse`
+- **Error Codes**: `400 BAD_REQUEST`, `403 FORBIDDEN`, `404 RESOURCE_NOT_FOUND`
 
-#### 10.6 POST `/api/v1/announcements/{id}/acknowledge`
-- **Purpose**: Idempotently record employee's formal sign-off and acknowledgement of a mandatory notice.
-- **Idempotency**: Multiple calls update `acknowledged_at` if not already set and return `200 OK` with current acknowledgement state without throwing duplicate key errors.
+#### 10.6 POST `/api/v1/announcements/{id}/schedule`
+- **Purpose**: Schedule an announcement for future publication timestamp.
+- **Authentication**: Bearer Token
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN`
+- **Path Parameters**: `id` (UUID)
+- **Request Body**: `ScheduleAnnouncementRequest` (scheduledAt)
+- **Response**: `200 OK` with `AnnouncementResponse`
+- **Error Codes**: `400 BAD_REQUEST`, `403 FORBIDDEN`
+
+#### 10.7 POST `/api/v1/announcements/{id}/cancel`
+- **Purpose**: Safely cancel an announcement without physical deletion.
+- **Authentication**: Bearer Token
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN`
+- **Path Parameters**: `id` (UUID)
+- **Response**: `200 OK` with `AnnouncementResponse`
+- **Error Codes**: `400 BAD_REQUEST`, `403 FORBIDDEN`
+
+#### 10.8 POST `/api/v1/announcements/{id}/archive`
+- **Purpose**: Move a published announcement to ARCHIVED state.
+- **Authentication**: Bearer Token
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN`
+- **Path Parameters**: `id` (UUID)
+- **Response**: `200 OK` with `AnnouncementResponse`
+
+#### 10.9 POST `/api/v1/announcements/{id}/read`
+- **Purpose**: Explicitly mark announcement as read. Preserves existing read timestamp on subsequent calls.
 - **Authentication**: Bearer Token
 - **Authorization**: Target Audience Member
 - **Path Parameters**: `id` (UUID)
-- **Response**: `200 OK` with `AnnouncementAcknowledgementResponse` (announcementId, userId, acknowledgedAt)
-- **Error Codes**: `404 RESOURCE_NOT_FOUND`
+- **Response**: `200 OK` with `AnnouncementReadResponse` (announcementId, userId, read, readAt, acknowledged, acknowledgedAt)
 
-#### 10.7 GET `/api/v1/announcements/{id}/statistics`
-- **Purpose**: HR/Manager compliance report showing read and acknowledgement metrics across target audience.
+#### 10.10 POST `/api/v1/announcements/{id}/acknowledge`
+- **Purpose**: Formally acknowledge a mandatory announcement (`requiresAcknowledgement = true`). Sets `read_at` if not already set.
 - **Authentication**: Bearer Token
-- **Authorization**: Announcement Author, `HR_ADMIN`, `SUPER_ADMIN`, or Department Manager
+- **Authorization**: Target Audience Member
 - **Path Parameters**: `id` (UUID)
-- **Response**: `200 OK` with `AnnouncementStatisticsResponse` (totalTargeted, readCount, acknowledgedCount, acknowledgedPercentage, pendingEmployeesList)
+- **Response**: `200 OK` with `AnnouncementReadResponse`
+- **Error Codes**: `400 BAD_REQUEST` (if requiresAcknowledgement is false)
+
+#### 10.11 GET `/api/v1/announcements/{id}/acknowledgements`
+- **Purpose**: Retrieve aggregated compliance statistics and employee-by-employee acknowledgement statuses.
+- **Aliases**: `@GetMapping(value = {"/{id}/acknowledgements", "/{id}/statistics"})`
+- **Authentication**: Bearer Token
+- **Authorization**: Announcement Author, `SUPER_ADMIN`, `HR_ADMIN`, Department Manager (own dept), Team Leader (own team)
+- **Path Parameters**: `id` (UUID)
+- **Response**: `200 OK` with `AcknowledgementReportResponse` (totalEligible, readCount, readPercentage, acknowledgedCount, acknowledgedPercentage, employeeStatuses)
+- **Error Codes**: `403 FORBIDDEN`, `404 RESOURCE_NOT_FOUND`
 
 ---
 
@@ -829,29 +863,43 @@ Operational shift briefings, video calls, team syncs, and RSVP tracking.
 
 ---
 
-### Domain 13: Notifications API (`/api/v1/notifications`)
+### Domain 13: In-App Notifications API (`/api/v1/notifications`)
 
-User activity notifications, badge counters, and read tracking.
+Centralized in-app notification alerts, unread counters, and IDOR-safe read state tracking.
 
 #### 13.1 GET `/api/v1/notifications`
-- **Purpose**: List user notifications with unread count.
-- **Authentication**: Bearer Token
-- **Authorization**: Authenticated User
-- **Query Parameters**: `page`, `size`, `isRead` (boolean)
-- **Response**: `200 OK` with `NotificationListResponse` (unreadCount, items, pagination)
+- **Purpose**: Retrieve paginated notification feed for the currently authenticated employee.
+- **Authentication**: Bearer Token (JWT)
+- **Authorization**: Authenticated User (inferred strictly from `SecurityUtils.getCurrentUserId()`)
+- **Query Parameters**:
+  - `page` (int, default: 0)
+  - `size` (int, default: 20, max: 100)
+  - `isRead` (Boolean, optional: filter by read/unread state)
+- **Sorting**: Deterministic `createdAt DESC, id DESC`
+- **Response**: `200 OK` with `StandardResponse<PageResponse<NotificationResponse>>`
+- **Error Codes**: `401 UNAUTHORIZED`
 
-#### 13.2 PATCH `/api/v1/notifications/{id}/read`
-- **Purpose**: Mark a single notification as read.
-- **Authentication**: Bearer Token
-- **Authorization**: Self (`notification.user_id == current_user.id`)
+#### 13.2 GET `/api/v1/notifications/unread-count`
+- **Purpose**: Get total unread in-app notification count for badging and UI indicator alerts.
+- **Authentication**: Bearer Token (JWT)
+- **Authorization**: Authenticated User
+- **Response**: `200 OK` with `StandardResponse<UnreadCountResponse>` (`unreadCount`)
+- **Error Codes**: `401 UNAUTHORIZED`
+
+#### 13.3 POST `/api/v1/notifications/{id}/read`
+- **Purpose**: Mark an individual in-app notification as read.
+- **Authentication**: Bearer Token (JWT)
+- **Authorization**: Self (`notification.user_id == current_user.id`). Query scopes strictly by `id` AND `userId`. Cross-user access returns `404 NOT_FOUND` for complete IDOR protection and zero information disclosure.
 - **Path Parameters**: `id` (UUID)
-- **Response**: `200 OK` with `NotificationResponse`
+- **Response**: `200 OK` with `StandardResponse<NotificationResponse>`
+- **Error Codes**: `401 UNAUTHORIZED`, `404 NOT_FOUND`
 
-#### 13.3 POST `/api/v1/notifications/read-all`
-- **Purpose**: Mark all unread notifications for current user as read in a single batch.
-- **Authentication**: Bearer Token
+#### 13.4 POST `/api/v1/notifications/read-all`
+- **Purpose**: Mark all unread notifications for the currently authenticated employee as read in a single transactional batch.
+- **Authentication**: Bearer Token (JWT)
 - **Authorization**: Authenticated User
-- **Response**: `200 OK` with `StandardResponse<BatchReadResponse>` (countMarkedRead)
+- **Response**: `200 OK` with `StandardResponse<Map<String, Object>>` (`markedCount`)
+- **Error Codes**: `401 UNAUTHORIZED`
 
 ---
 

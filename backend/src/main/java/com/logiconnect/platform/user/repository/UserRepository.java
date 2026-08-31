@@ -21,4 +21,13 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     @Query("SELECT u FROM User u LEFT JOIN FETCH u.employee e LEFT JOIN FETCH e.department LEFT JOIN FETCH e.team LEFT JOIN FETCH u.roles r LEFT JOIN FETCH r.permissions WHERE u.id = :id")
     Optional<User> findByIdWithDetails(@Param("id") UUID id);
+
+    @Query("SELECT u FROM User u JOIN FETCH u.employee e LEFT JOIN FETCH e.department d LEFT JOIN FETCH e.team t WHERE u.status = com.logiconnect.platform.user.entity.UserStatus.ACTIVE AND e.status = com.logiconnect.platform.employee.entity.EmployeeStatus.ACTIVE")
+    java.util.List<User> findAllActiveWithEmployees();
+
+    @Query("SELECT u FROM User u JOIN FETCH u.employee e LEFT JOIN FETCH e.department d LEFT JOIN FETCH e.team t WHERE u.status = com.logiconnect.platform.user.entity.UserStatus.ACTIVE AND e.status = com.logiconnect.platform.employee.entity.EmployeeStatus.ACTIVE AND d.id = :deptId")
+    java.util.List<User> findActiveByDepartment(@Param("deptId") UUID deptId);
+
+    @Query("SELECT u FROM User u JOIN FETCH u.employee e LEFT JOIN FETCH e.department d LEFT JOIN FETCH e.team t WHERE u.status = com.logiconnect.platform.user.entity.UserStatus.ACTIVE AND e.status = com.logiconnect.platform.employee.entity.EmployeeStatus.ACTIVE AND t.id = :teamId")
+    java.util.List<User> findActiveByTeam(@Param("teamId") UUID teamId);
 }

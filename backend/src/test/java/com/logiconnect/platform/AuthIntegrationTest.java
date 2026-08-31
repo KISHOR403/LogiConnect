@@ -115,6 +115,15 @@ class AuthIntegrationTest {
     private MessageAttachmentRepository attachmentRepository;
 
     @Autowired
+    private com.logiconnect.platform.announcement.repository.AnnouncementRepository announcementRepository;
+
+    @Autowired
+    private com.logiconnect.platform.announcement.repository.AnnouncementReadRepository announcementReadRepository;
+
+    @Autowired
+    private com.logiconnect.platform.notification.repository.NotificationRepository notificationRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -129,6 +138,9 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        notificationRepository.deleteAll();
+        announcementReadRepository.deleteAll();
+        announcementRepository.deleteAll();
         attachmentRepository.deleteAll();
         messageRepository.deleteAll();
         conversationMemberRepository.deleteAll();

@@ -19,7 +19,13 @@ public final class AppPermission {
     // Messaging & Collaboration Permissions
     public static final String SEND_MESSAGES = "SEND_MESSAGES";
     public static final String MANAGE_CHANNELS = "MANAGE_CHANNELS";
+    public static final String CREATE_ANNOUNCEMENT = "CREATE_ANNOUNCEMENT";
+    public static final String EDIT_ANNOUNCEMENT = "EDIT_ANNOUNCEMENT";
     public static final String PUBLISH_ANNOUNCEMENTS = "PUBLISH_ANNOUNCEMENTS";
+    public static final String SCHEDULE_ANNOUNCEMENTS = "SCHEDULE_ANNOUNCEMENTS";
+    public static final String CANCEL_ANNOUNCEMENTS = "CANCEL_ANNOUNCEMENTS";
+    public static final String ARCHIVE_ANNOUNCEMENTS = "ARCHIVE_ANNOUNCEMENTS";
+    public static final String ACKNOWLEDGE_ANNOUNCEMENTS = "ACKNOWLEDGE_ANNOUNCEMENTS";
     public static final String MANAGE_DOCUMENTS = "MANAGE_DOCUMENTS";
     public static final String SCHEDULE_MEETINGS = "SCHEDULE_MEETINGS";
 

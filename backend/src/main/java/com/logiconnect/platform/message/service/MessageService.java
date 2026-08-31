@@ -54,6 +54,7 @@ public class MessageService {
     private final ChannelService channelService;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final com.logiconnect.platform.notification.service.NotificationService notificationService;
 
     public MessageService(
             MessageRepository messageRepository,
@@ -64,7 +65,8 @@ public class MessageService {
             ChannelMemberRepository channelMemberRepository,
             ChannelService channelService,
             UserRepository userRepository,
-            AuditService auditService
+            AuditService auditService,
+            com.logiconnect.platform.notification.service.NotificationService notificationService
     ) {
         this.messageRepository = messageRepository;
         this.attachmentRepository = attachmentRepository;
@@ -75,6 +77,7 @@ public class MessageService {
         this.channelService = channelService;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     // ==========================================
@@ -156,6 +159,35 @@ public class MessageService {
         conversationRepository.save(conversation);
 
         log.info("Message sent: id={} in conversationId={} by senderId={}", message.getId(), conversationId, currentUserId);
+
+        // Generate notifications for conversation members (excluding sender)
+        try {
+            List<com.logiconnect.platform.conversation.entity.ConversationMember> members = 
+                    conversationMemberRepository.findActiveMembersByConversationId(conversationId);
+            List<UUID> recipientIds = members.stream()
+                    .map(m -> m.getUser().getId())
+                    .filter(uid -> !uid.equals(currentUserId))
+                    .toList();
+
+            com.logiconnect.platform.notification.entity.NotificationType notifType;
+            String notifTitle;
+            String notifMessage;
+
+            if (conversation.getType() == com.logiconnect.platform.conversation.entity.ConversationType.DIRECT) {
+                notifType = com.logiconnect.platform.notification.entity.NotificationType.MESSAGE;
+                notifTitle = "New Direct Message";
+                notifMessage = "You received a new direct message";
+            } else {
+                notifType = com.logiconnect.platform.notification.entity.NotificationType.GROUP_MESSAGE;
+                notifTitle = "New Group Message";
+                notifMessage = "New message in " + (conversation.getName() != null ? conversation.getName() : "group conversation");
+            }
+
+            notificationService.createBulkNotifications(recipientIds, notifType, notifTitle, notifMessage, "MESSAGE", message.getId());
+        } catch (Exception ex) {
+            log.error("Failed to generate notifications for message: id={}", message.getId(), ex);
+        }
+
         return toMessageResponse(message);
     }
 
@@ -257,6 +289,26 @@ public class MessageService {
         }
 
         log.info("Channel message sent: id={} in channelId={} by senderId={}", message.getId(), channelId, currentUserId);
+
+        // Generate notifications for channel members (excluding sender)
+        try {
+            List<com.logiconnect.platform.channel.entity.ChannelMember> members =
+                    channelMemberRepository.findByChannelIdWithDetails(channelId);
+            List<UUID> recipientIds = members.stream()
+                    .map(m -> m.getUser().getId())
+                    .filter(uid -> !uid.equals(currentUserId))
+                    .toList();
+
+            com.logiconnect.platform.notification.entity.NotificationType notifType =
+                    com.logiconnect.platform.notification.entity.NotificationType.CHANNEL_MESSAGE;
+            String notifTitle = "New Channel Message";
+            String notifMessage = "New message in #" + channel.getName();
+
+            notificationService.createBulkNotifications(recipientIds, notifType, notifTitle, notifMessage, "MESSAGE", message.getId());
+        } catch (Exception ex) {
+            log.error("Failed to generate notifications for channel message: id={}", message.getId(), ex);
+        }
+
         return toMessageResponse(message);
     }
 

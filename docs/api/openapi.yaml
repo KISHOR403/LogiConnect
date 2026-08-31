@@ -1243,22 +1243,27 @@ paths:
   /announcements:
     get:
       tags: [Announcements]
-      summary: List Announcements
-      description: Paginated broadcast feed targeted to current user.
+      summary: List Announcements Feed
+      description: Paginated announcement feed visible to current authenticated employee based on active targeting scope.
       security:
         - BearerAuth: []
       parameters:
         - $ref: '#/components/parameters/PageQuery'
         - $ref: '#/components/parameters/SizeQuery'
-        - name: priority
+        - name: type
           in: query
           schema:
             type: string
-            enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
-        - name: isAcknowledged
+            enum: [GENERAL, HR, OPERATIONS, SAFETY, POLICY, EMERGENCY, MAINTENANCE]
+        - name: status
           in: query
           schema:
-            type: boolean
+            type: string
+            enum: [DRAFT, SCHEDULED, PUBLISHED, CANCELLED, ARCHIVED]
+        - name: search
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Announcements list
@@ -1268,7 +1273,8 @@ paths:
                 $ref: '#/components/schemas/AnnouncementPageEnvelope'
     post:
       tags: [Announcements]
-      summary: Draft Announcement
+      summary: Create Official Announcement
+      description: Draft or schedule a new company, department, or team announcement.
       security:
         - BearerAuth: []
       requestBody:
@@ -1279,11 +1285,15 @@ paths:
               $ref: '#/components/schemas/CreateAnnouncementRequest'
       responses:
         '201':
-          description: Announcement drafted
+          description: Announcement created successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /announcements/{id}:
     get:
@@ -1305,9 +1315,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnnouncementDetailEnvelope'
-    patch:
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
       tags: [Announcements]
-      summary: Update Announcement
+      summary: Update Announcement Draft
       security:
         - BearerAuth: []
       parameters:
@@ -1330,11 +1344,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /announcements/{id}/publish:
     post:
       tags: [Announcements]
       summary: Publish Announcement
+      description: Transitions draft or scheduled announcement to PUBLISHED state with audit logging.
       security:
         - BearerAuth: []
       parameters:
@@ -1346,16 +1365,114 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Announcement published and dispatched
+          description: Announcement published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /announcements/{id}/schedule:
+    post:
+      tags: [Announcements]
+      summary: Schedule Announcement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleAnnouncementRequest'
+      responses:
+        '200':
+          description: Announcement scheduled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /announcements/{id}/cancel:
+    post:
+      tags: [Announcements]
+      summary: Cancel Announcement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Announcement cancelled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /announcements/{id}/archive:
+    post:
+      tags: [Announcements]
+      summary: Archive Announcement
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Announcement archived successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnnouncementDetailEnvelope'
 
+  /announcements/{id}/read:
+    post:
+      tags: [Announcements]
+      summary: Mark Announcement as Read
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Read timestamp recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnouncementReadEnvelope'
+
   /announcements/{id}/acknowledge:
     post:
       tags: [Announcements]
-      summary: Acknowledge Announcement (Idempotent)
+      summary: Acknowledge Mandatory Announcement
       security:
         - BearerAuth: []
       parameters:
@@ -1371,12 +1488,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnnouncementAcknowledgementEnvelope'
+                $ref: '#/components/schemas/AnnouncementReadEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /announcements/{id}/acknowledgements:
+    get:
+      tags: [Announcements]
+      summary: Get Announcement Acknowledgement Report
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Acknowledgement compliance report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgementReportEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /announcements/{id}/statistics:
     get:
       tags: [Announcements]
-      summary: Get Announcement Compliance Statistics
+      summary: Get Announcement Compliance Statistics (Alias)
       security:
         - BearerAuth: []
       parameters:
@@ -1392,7 +1534,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AnnouncementStatisticsEnvelope'
+                $ref: '#/components/schemas/AcknowledgementReportEnvelope'
 
   # ==========================================================================
   # 10. DOCUMENTS API
@@ -1747,6 +1889,7 @@ paths:
     get:
       tags: [Notifications]
       summary: List User Notifications
+      description: Returns a paginated list of notifications for the authenticated user, ordered newest first.
       security:
         - BearerAuth: []
       parameters:
@@ -1754,20 +1897,41 @@ paths:
         - $ref: '#/components/parameters/SizeQuery'
         - name: isRead
           in: query
+          required: false
           schema:
             type: boolean
       responses:
         '200':
-          description: Notification feed with unread count
+          description: Notification feed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/NotificationListEnvelope'
+                $ref: '#/components/schemas/NotificationPageEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get Unread Notification Count
+      description: Returns the total unread notification count for the authenticated employee badge.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Unread notification count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnreadCountEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /notifications/{id}/read:
-    patch:
+    post:
       tags: [Notifications]
-      summary: Mark Single Notification Read
+      summary: Mark Notification Read
+      description: Marks a single notification as read. Scoped strictly to the current user (IDOR safe; returns 404 if notification belongs to another user).
       security:
         - BearerAuth: []
       parameters:
@@ -1779,25 +1943,32 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Notification marked read
+          description: Notification marked as read
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NotificationEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /notifications/read-all:
     post:
       tags: [Notifications]
       summary: Mark All Notifications Read
+      description: Marks all unread notifications for the currently authenticated employee as read in a single batch.
       security:
         - BearerAuth: []
       responses:
         '200':
-          description: All notifications marked read
+          description: All notifications marked as read
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/StandardResponseVoid'
+                $ref: '#/components/schemas/NotificationBatchReadEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ==========================================================================
   # 13. SEARCH API
@@ -2465,31 +2636,32 @@ components:
     # Announcements Schemas
     CreateAnnouncementRequest:
       type: object
-      required: [title, content, priority, audienceType]
+      required: [title, content, type, priority, targetType]
       properties:
         title:
           type: string
         content:
           type: string
+        type:
+          type: string
+          enum: [GENERAL, HR, OPERATIONS, SAFETY, POLICY, EMERGENCY, MAINTENANCE]
         priority:
           type: string
-          enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
-        audienceType:
+          enum: [NORMAL, HIGH, URGENT, EMERGENCY]
+        targetType:
           type: string
-          enum: [ALL, DEPARTMENT, TEAM, ROLE, INDIVIDUAL, ALL_EMPLOYEES]
+          enum: [COMPANY, DEPARTMENT, TEAM]
         departmentId:
           type: string
           format: uuid
         teamId:
           type: string
           format: uuid
-        targetRoleId:
-          type: string
-          format: uuid
-        targetLocation:
-          type: string
         requiresAcknowledgement:
           type: boolean
+        scheduledAt:
+          type: string
+          format: date-time
         expiresAt:
           type: string
           format: date-time
@@ -2501,10 +2673,35 @@ components:
           type: string
         content:
           type: string
+        type:
+          type: string
+          enum: [GENERAL, HR, OPERATIONS, SAFETY, POLICY, EMERGENCY, MAINTENANCE]
         priority:
           type: string
-          enum: [NORMAL, IMPORTANT, URGENT, EMERGENCY]
+          enum: [NORMAL, HIGH, URGENT, EMERGENCY]
+        targetType:
+          type: string
+          enum: [COMPANY, DEPARTMENT, TEAM]
+        departmentId:
+          type: string
+          format: uuid
+        teamId:
+          type: string
+          format: uuid
+        requiresAcknowledgement:
+          type: boolean
+        scheduledAt:
+          type: string
+          format: date-time
         expiresAt:
+          type: string
+          format: date-time
+
+    ScheduleAnnouncementRequest:
+      type: object
+      required: [scheduledAt]
+      properties:
+        scheduledAt:
           type: string
           format: date-time
 
@@ -2518,35 +2715,61 @@ components:
           type: string
         content:
           type: string
-        author:
-          type: object
-          properties:
-            userId:
-              type: string
-              format: uuid
-            fullName:
-              type: string
+        type:
+          type: string
+        status:
+          type: string
         priority:
           type: string
-        audienceType:
+        targetType:
           type: string
+        departmentId:
+          type: string
+          format: uuid
+        departmentName:
+          type: string
+        teamId:
+          type: string
+          format: uuid
+        teamName:
+          type: string
+        requiresAcknowledgement:
+          type: boolean
+        scheduledAt:
+          type: string
+          format: date-time
         publishedAt:
           type: string
           format: date-time
         expiresAt:
           type: string
           format: date-time
-        requiresAcknowledgement:
+        createdById:
+          type: string
+          format: uuid
+        createdByName:
+          type: string
+        publishedById:
+          type: string
+          format: uuid
+        publishedByName:
+          type: string
+        read:
           type: boolean
-        isRead:
-          type: boolean
-        isAcknowledged:
+        readAt:
+          type: string
+          format: date-time
+        acknowledged:
           type: boolean
         acknowledgedAt:
           type: string
           format: date-time
-        status:
+        createdAt:
           type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
 
     AnnouncementPageEnvelope:
       type: object
@@ -2575,7 +2798,7 @@ components:
         message:
           type: string
 
-    AnnouncementAcknowledgementEnvelope:
+    AnnouncementReadEnvelope:
       type: object
       properties:
         success:
@@ -2589,13 +2812,45 @@ components:
             userId:
               type: string
               format: uuid
+            read:
+              type: boolean
+            readAt:
+              type: string
+              format: date-time
+            acknowledged:
+              type: boolean
             acknowledgedAt:
               type: string
               format: date-time
         message:
           type: string
 
-    AnnouncementStatisticsEnvelope:
+    EmployeeAcknowledgementStatusDto:
+      type: object
+      properties:
+        employeeId:
+          type: string
+          format: uuid
+        employeeCode:
+          type: string
+        fullName:
+          type: string
+        departmentName:
+          type: string
+        teamName:
+          type: string
+        read:
+          type: boolean
+        readAt:
+          type: string
+          format: date-time
+        acknowledged:
+          type: boolean
+        acknowledgedAt:
+          type: string
+          format: date-time
+
+    AcknowledgementReportEnvelope:
       type: object
       properties:
         success:
@@ -2606,19 +2861,32 @@ components:
             announcementId:
               type: string
               format: uuid
-            totalTargeted:
+            title:
+              type: string
+            targetType:
+              type: string
+            departmentName:
+              type: string
+            teamName:
+              type: string
+            requiresAcknowledgement:
+              type: boolean
+            totalEligible:
               type: integer
             readCount:
               type: integer
+            readPercentage:
+              type: number
+              format: double
             acknowledgedCount:
               type: integer
             acknowledgedPercentage:
               type: number
               format: double
-            unacknowledgedEmployees:
+            employeeStatuses:
               type: array
               items:
-                $ref: '#/components/schemas/EmployeeSummaryDto'
+                $ref: '#/components/schemas/EmployeeAcknowledgementStatusDto'
         message:
           type: string
 
@@ -3326,5 +3594,108 @@ components:
                     format: date-time
             pagination:
               $ref: '#/components/schemas/PaginationMetadata'
+        message:
+          type: string
+
+    NotificationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum:
+            - MESSAGE
+            - GROUP_MESSAGE
+            - CHANNEL_MESSAGE
+            - ANNOUNCEMENT
+            - URGENT_ANNOUNCEMENT
+            - ACKNOWLEDGEMENT_REQUIRED
+            - MEETING_INVITATION
+            - MEETING_UPDATED
+            - MEETING_CANCELLED
+            - MENTION
+            - SECURITY
+        title:
+          type: string
+        message:
+          type: string
+        referenceType:
+          type: string
+        referenceId:
+          type: string
+          format: uuid
+        isRead:
+          type: boolean
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    NotificationPageEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            content:
+              type: array
+              items:
+                $ref: '#/components/schemas/NotificationResponse'
+            page:
+              type: integer
+            size:
+              type: integer
+            totalElements:
+              type: integer
+            totalPages:
+              type: integer
+            first:
+              type: boolean
+            last:
+              type: boolean
+        message:
+          type: string
+
+    NotificationEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/NotificationResponse'
+        message:
+          type: string
+
+    UnreadCountEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            unreadCount:
+              type: integer
+              format: int64
+        message:
+          type: string
+
+    NotificationBatchReadEnvelope:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            markedCount:
+              type: integer
         message:
           type: string

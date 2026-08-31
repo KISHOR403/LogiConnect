@@ -91,13 +91,17 @@
 | `/channels/{id}` | DELETE | `MANAGE_CHANNEL` | No | No | Mgr* | Yes | Yes | Archive / soft delete |
 | `/channels/{id}/members` | GET/POST | Authenticated | Private* | Private* | Private* | Private* | Private* | *Private channel member |
 | **Announcements** | | | | | | | | |
-| `/announcements` | GET | Authenticated | Target | Target | Target | Target | Target | Filtered by audience scope |
-| `/announcements/{id}` | GET | Authenticated | Target | Target | Target | Target | Target | View details (marks read) |
-| `/announcements` | POST | `CREATE_ANNOUNCEMENT`| No | Team* | Dept* | Yes | Yes | *Scope restricted |
-| `/announcements/{id}` | PATCH | `EDIT_ANNOUNCEMENT` | No | Author | Author | Yes | Yes | Author or HR/Super Admin |
-| `/announcements/{id}/publish`| POST | `CREATE_ANNOUNCEMENT`| No | Author | Author | Yes | Yes | Triggers broadcast dispatch |
-| `/announcements/{id}/acknowledge`| POST | `ACKNOWLEDGE_ANNOUNCEMENT`| Yes | Yes | Yes | Yes | Yes | Idempotent sign-off |
-| `/announcements/{id}/statistics` | GET | `CREATE_ANNOUNCEMENT`| No | Author | Dept | Yes | Yes | Compliance percentage & list |
+| `/announcements` | GET | Authenticated | Target | Target | Target | Target | Target | Filtered by audience scope (active/published) |
+| `/announcements/{id}` | GET | Authenticated | Target | Target | Target | Target | Target | View details (records read timestamp) |
+| `/announcements` | POST | `CREATE_ANNOUNCEMENT`| No | Team* | Dept* | Yes | Yes | *Scope restricted (Team Lead/Dept Manager) |
+| `/announcements/{id}` | PUT | `EDIT_ANNOUNCEMENT` | No | Author | Author | Yes | Yes | Author or HR/Super Admin (DRAFT/SCHEDULED only) |
+| `/announcements/{id}/publish`| POST | `PUBLISH_ANNOUNCEMENTS`| No | Author* | Author* | Yes | Yes | Transitions to PUBLISHED state with audit event |
+| `/announcements/{id}/schedule`| POST | `SCHEDULE_ANNOUNCEMENTS`| No | Author* | Author* | Yes | Yes | Sets future publication schedule |
+| `/announcements/{id}/cancel` | POST | `CANCEL_ANNOUNCEMENTS`| No | Author* | Author* | Yes | Yes | Safe cancellation without deletion |
+| `/announcements/{id}/archive`| POST | `ARCHIVE_ANNOUNCEMENTS`| No | Author* | Author* | Yes | Yes | Moves published notice to ARCHIVED |
+| `/announcements/{id}/read` | POST | Authenticated | Target | Target | Target | Target | Target | Explicit non-destructive read tracking |
+| `/announcements/{id}/acknowledge`| POST | `ACKNOWLEDGE_ANNOUNCEMENTS`| Target | Target | Target | Target | Target | Formal sign-off for mandatory notices |
+| `/announcements/{id}/acknowledgements` | GET | Authenticated | No | Lead* | Mgr* | Yes | Yes | Compliance report (scoped to author/lead/mgr/admin) |
 | **Documents** | | | | | | | | |
 | `/documents` | GET | `VIEW_DOCUMENTS` | Scope | Scope | Scope | Scope | Scope | Visibility scope check |
 | `/documents/{id}` | GET | `VIEW_DOCUMENTS` | Scope | Scope | Scope | Scope | Scope | Generates pre-signed download |
@@ -113,9 +117,10 @@
 | `/meetings/{id}/participants/{u}/response`| PATCH | Authenticated | Self | Self | Self | Self | Self | Update own RSVP |
 | `/calendar/events` | GET | Authenticated | Yes | Yes | Yes | Yes | Yes | Personal + team schedule |
 | **Notifications** | | | | | | | | |
-| `/notifications` | GET | Authenticated | Self | Self | Self | Self | Self | Own notification queue |
-| `/notifications/{id}/read` | PATCH | Authenticated | Self | Self | Self | Self | Self | Mark single read |
-| `/notifications/read-all` | POST | Authenticated | Self | Self | Self | Self | Self | Mark all read |
+| `/notifications` | GET | Authenticated | Self | Self | Self | Self | Self | Own paginated notification feed |
+| `/notifications/unread-count` | GET | Authenticated | Self | Self | Self | Self | Self | Total unread notification counter |
+| `/notifications/{id}/read` | POST | Authenticated | Self | Self | Self | Self | Self | Mark single read (IDOR scoped) |
+| `/notifications/read-all` | POST | Authenticated | Self | Self | Self | Self | Self | Mark all read for current user |
 | **Search** | | | | | | | | |
 | `/search` | GET | Authenticated | Filtered| Filtered| Filtered| Filtered| Filtered| Scoped to user's permissions |
 | **Admin Cockpit** | | | | | | | | |

@@ -448,62 +448,108 @@ Includes all summary fields plus:
 
 ---
 
-### Domain 7: Announcement DTOs
+### Domain 7: Announcement & Corporate Broadcast DTOs
 
 #### `CreateAnnouncementRequest`
 | Field | Type | Required | Constraints |
 | :--- | :--- | :--- | :--- |
 | `title` | `string` | Yes | `@NotBlank`, `@Size(max=255)` |
 | `content` | `string` | Yes | `@NotBlank`, Markdown/Text body |
-| `priority` | `string` | Yes | Enum: `NORMAL`, `IMPORTANT`, `URGENT`, `EMERGENCY` |
-| `audienceType` | `string` | Yes | Enum: `ALL`, `DEPARTMENT`, `TEAM`, `ROLE`, `INDIVIDUAL`, `ALL_EMPLOYEES` |
-| `departmentId` | `string` (UUID) | Conditional | Mandatory if `audienceType == DEPARTMENT` |
-| `teamId` | `string` (UUID) | Conditional | Mandatory if `audienceType == TEAM` |
-| `targetRoleId` | `string` (UUID) | Conditional | Mandatory if `audienceType == ROLE` |
-| `targetLocation` | `string` | No | Optional location targeting |
-| `requiresAcknowledgement`| `boolean`| No | Default `false` |
-| `expiresAt` | `string` (ISO-8601) | No | Optional auto-archive cutoff |
+| `type` | `string` | Yes | Enum: `GENERAL`, `HR`, `OPERATIONS`, `SAFETY`, `POLICY`, `EMERGENCY`, `MAINTENANCE` |
+| `priority` | `string` | Yes | Enum: `NORMAL`, `HIGH`, `URGENT`, `EMERGENCY` |
+| `targetType` | `string` | Yes | Enum: `COMPANY`, `DEPARTMENT`, `TEAM` |
+| `departmentId` | `string` (UUID) | Conditional | Required if `targetType == DEPARTMENT`, must be null if `COMPANY` |
+| `teamId` | `string` (UUID) | Conditional | Required if `targetType == TEAM`, must be null if `COMPANY` or `DEPARTMENT` |
+| `requiresAcknowledgement` | `boolean` | No | Default `false` |
+| `scheduledAt` | `string` (ISO-8601) | No | Optional future publication timestamp |
+| `expiresAt` | `string` (ISO-8601) | No | Optional expiration timestamp |
 
-*Example Request:*
-```json
-{
-  "title": "Severe Weather Alert: Heavy Rainfall at Bangalore Hub",
-  "content": "Due to torrential rains, loading dock bays 4-8 are temporarily closed. All driver dispatches are routed through North Gate. Safety gear is mandatory.",
-  "priority": "URGENT",
-  "audienceType": "DEPARTMENT",
-  "departmentId": "c0000000-0000-0000-0000-000000000003",
-  "requiresAcknowledgement": true,
-  "expiresAt": "2026-09-02T23:59:59Z"
-}
-```
+#### `UpdateAnnouncementRequest`
+| Field | Type | Required | Constraints |
+| :--- | :--- | :--- | :--- |
+| `title` | `string` | No | `@Size(max=255)` |
+| `content` | `string` | No | Markdown/Text body |
+| `type` | `string` | No | Enum: `GENERAL`, `HR`, `OPERATIONS`, `SAFETY`, `POLICY`, `EMERGENCY`, `MAINTENANCE` |
+| `priority` | `string` | No | Enum: `NORMAL`, `HIGH`, `URGENT`, `EMERGENCY` |
+| `targetType` | `string` | No | Enum: `COMPANY`, `DEPARTMENT`, `TEAM` |
+| `departmentId` | `string` (UUID) | No | Target department |
+| `teamId` | `string` (UUID) | No | Target team |
+| `requiresAcknowledgement` | `boolean` | No | Sign-off flag |
+| `scheduledAt` | `string` (ISO-8601) | No | Scheduled timestamp |
+| `expiresAt` | `string` (ISO-8601) | No | Expiration timestamp |
 
-#### `AnnouncementDetailResponse`
+#### `ScheduleAnnouncementRequest`
+| Field | Type | Required | Constraints |
+| :--- | :--- | :--- | :--- |
+| `scheduledAt` | `string` (ISO-8601) | Yes | `@NotNull`, `@Future` publication timestamp |
+
+#### `AnnouncementResponse`
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `id` | `string` (UUID) | Announcement UUID |
-| `title` | `string` | Headline |
-| `content` | `string` | Full announcement text |
-| `author` | `AuthorSummaryResponse` | Author user details |
-| `priority` | `string` | `NORMAL`, `IMPORTANT`, `URGENT`, `EMERGENCY` |
-| `audienceType` | `string` | Audience classification |
-| `targetScope` | `string` | Description of target group (e.g. "Department: Operations") |
-| `publishedAt` | `string` (ISO-8601) | Publication timestamp |
+| `id` | `string` (UUID) | Unique announcement UUID |
+| `title` | `string` | Announcement headline |
+| `content` | `string` | Full announcement text body |
+| `type` | `string` | Category (`GENERAL`, `HR`, `OPERATIONS`, `SAFETY`, `POLICY`, `EMERGENCY`, `MAINTENANCE`) |
+| `status` | `string` | Lifecycle state (`DRAFT`, `SCHEDULED`, `PUBLISHED`, `CANCELLED`, `ARCHIVED`) |
+| `priority` | `string` | Priority level (`NORMAL`, `HIGH`, `URGENT`, `EMERGENCY`) |
+| `targetType` | `string` | Targeting scope (`COMPANY`, `DEPARTMENT`, `TEAM`) |
+| `departmentId` | `string` (UUID) | Targeted department identifier |
+| `departmentName` | `string` | Targeted department name |
+| `teamId` | `string` (UUID) | Targeted team identifier |
+| `teamName` | `string` | Targeted team name |
+| `requiresAcknowledgement` | `boolean` | Non-repudiation mandatory sign-off flag |
+| `scheduledAt` | `string` (ISO-8601) | Planned publication timestamp |
+| `publishedAt` | `string` (ISO-8601) | Actual publication timestamp |
 | `expiresAt` | `string` (ISO-8601) | Expiration timestamp |
-| `requiresAcknowledgement`| `boolean` | Mandatory sign-off requirement |
-| `isRead` | `boolean` | Current user read state |
-| `isAcknowledged` | `boolean` | Current user acknowledgement state |
-| `acknowledgedAt` | `string` (ISO-8601) | When current user acknowledged |
-| `status` | `string` | `DRAFT`, `PUBLISHED`, `ARCHIVED`, `CANCELLED` |
+| `createdById` | `string` (UUID) | Creator user UUID |
+| `createdByName` | `string` | Creator user full name |
+| `publishedById` | `string` (UUID) | Publisher user UUID |
+| `publishedByName` | `string` | Publisher user full name |
+| `read` | `boolean` | Current authenticated employee read state |
+| `readAt` | `string` (ISO-8601) | Timestamp when current user read notice |
+| `acknowledged` | `boolean` | Current authenticated employee acknowledgement state |
+| `acknowledgedAt` | `string` (ISO-8601) | Timestamp when current user acknowledged |
+| `createdAt` | `string` (ISO-8601) | Record creation timestamp |
+| `updatedAt` | `string` (ISO-8601) | Record modification timestamp |
 
-#### `AnnouncementStatisticsResponse`
+#### `AnnouncementReadResponse`
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `announcementId` | `string` (UUID) | Notice UUID |
-| `totalTargeted` | `integer` | Total eligible employees in audience |
-| `readCount` | `integer` | Number of employees who viewed notice |
-| `acknowledgedCount` | `integer` | Number of employees who signed acknowledgement |
-| `acknowledgedPercentage` | `double` | Percentage compliant (0.0 to 100.0) |
-| `unacknowledgedEmployees`| `List<EmployeeSummaryResponse>` | List of employees pending acknowledgement |
+| `announcementId` | `string` (UUID) | Target announcement identifier |
+| `userId` | `string` (UUID) | Authenticated employee user UUID |
+| `read` | `boolean` | Read flag (`true`) |
+| `readAt` | `string` (ISO-8601) | Immutable read timestamp |
+| `acknowledged` | `boolean` | Acknowledgement flag |
+| `acknowledgedAt` | `string` (ISO-8601) | Immutable acknowledgement timestamp |
+
+#### `AcknowledgementReportResponse`
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `announcementId` | `string` (UUID) | Announcement identifier |
+| `title` | `string` | Announcement headline |
+| `targetType` | `string` | Audience classification (`COMPANY`, `DEPARTMENT`, `TEAM`) |
+| `departmentName` | `string` | Targeted department name |
+| `teamName` | `string` | Targeted team name |
+| `requiresAcknowledgement` | `boolean` | Mandatory sign-off requirement |
+| `totalEligible` | `long` | Total active eligible employees in targeted scope |
+| `readCount` | `long` | Number of employees who viewed notice |
+| `readPercentage` | `double` | Read compliance percentage (0.00 to 100.00) |
+| `acknowledgedCount` | `long` | Number of employees who acknowledged notice |
+| `acknowledgedPercentage` | `double` | Acknowledgement compliance percentage (0.00 to 100.00) |
+| `employeeStatuses` | `List<EmployeeAcknowledgementStatusDto>` | Granular employee-by-employee tracking roster |
+
+#### `EmployeeAcknowledgementStatusDto`
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `employeeId` | `string` (UUID) | Employee UUID |
+| `employeeCode` | `string` | Official corporate employee code |
+| `fullName` | `string` | Employee display name |
+| `departmentName` | `string` | Employee department name |
+| `teamName` | `string` | Employee team name |
+| `read` | `boolean` | Individual read indicator |
+| `readAt` | `string` (ISO-8601) | Timestamp of first read |
+| `acknowledged` | `boolean` | Individual acknowledgement indicator |
+| `acknowledgedAt` | `string` (ISO-8601) | Timestamp of acknowledgement |
 
 ---
 
@@ -608,20 +654,25 @@ Includes all summary fields plus:
 
 ---
 
-### Domain 10: Notification DTOs
+### Domain 10: In-App Notification DTOs
 
 #### `NotificationResponse`
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `id` | `string` (UUID) | Notification identifier |
-| `type` | `string` | `ANNOUNCEMENT`, `MESSAGE`, `MEETING_INVITE`, `MENTION`, `SYSTEM` |
-| `title` | `string` | Short subject |
-| `message` | `string` | Notification body |
-| `referenceType` | `string` | E.g. `ANNOUNCEMENT`, `CONVERSATION`, `CHANNEL`, `MEETING` |
+| `id` | `string` (UUID) | Notification unique identifier |
+| `type` | `string` (Enum) | `MESSAGE`, `GROUP_MESSAGE`, `CHANNEL_MESSAGE`, `ANNOUNCEMENT`, `URGENT_ANNOUNCEMENT`, `ACKNOWLEDGEMENT_REQUIRED`, `MEETING_INVITATION`, `MEETING_UPDATED`, `MEETING_CANCELLED`, `MENTION`, `SECURITY` |
+| `title` | `string` | Notification title / header |
+| `message` | `string` | Notification alert content body |
+| `referenceType` | `string` | Target entity category (e.g. `ANNOUNCEMENT`, `MESSAGE`, `CHANNEL`, `USER`) |
 | `referenceId` | `string` (UUID) | Target entity ID for in-app navigation deep linking |
-| `isRead` | `boolean` | Read flag |
-| `readAt` | `string` (ISO-8601) | When marked read |
-| `createdAt` | `string` (ISO-8601) | Delivery timestamp |
+| `isRead` | `boolean` | Read status flag |
+| `readAt` | `string` (ISO-8601) / `null` | Timestamp when notification was marked read |
+| `createdAt` | `string` (ISO-8601) | Timestamp when notification was delivered |
+
+#### `UnreadCountResponse`
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `unreadCount` | `long` | Total count of unread notifications for currently authenticated employee |
 
 ---
 

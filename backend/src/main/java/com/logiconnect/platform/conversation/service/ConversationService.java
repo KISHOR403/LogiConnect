@@ -24,7 +24,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Instant;
 import java.util.*;
@@ -42,22 +44,24 @@ public class ConversationService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final AuditService auditService;
+    private final TransactionTemplate transactionTemplate;
 
     public ConversationService(
             ConversationRepository conversationRepository,
             ConversationMemberRepository conversationMemberRepository,
             MessageRepository messageRepository,
             UserRepository userRepository,
-            AuditService auditService
+            AuditService auditService,
+            PlatformTransactionManager transactionManager
     ) {
         this.conversationRepository = conversationRepository;
         this.conversationMemberRepository = conversationMemberRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.auditService = auditService;
+        this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
-    @Transactional
     public ConversationResponse createOrGetDirectConversation(CreateDirectConversationRequest request, UUID currentUserId) {
         if (currentUserId == null) {
             throw new ForbiddenException("Authentication required");
@@ -83,29 +87,31 @@ public class ConversationService {
         String lockKey = ("DIRECT_CONV:" + first + ":" + second).intern();
 
         synchronized (lockKey) {
-            List<Conversation> existingDirect = conversationRepository.findDirectConversationsBetween(currentUserId, request.targetUserId());
-            if (!existingDirect.isEmpty()) {
-                log.debug("Found existing direct conversation: id={} between user1={} and user2={}", existingDirect.get(0).getId(), currentUserId, request.targetUserId());
-                return toConversationResponse(existingDirect.get(0));
-            }
+            return transactionTemplate.execute(status -> {
+                List<Conversation> existingDirect = conversationRepository.findDirectConversationsBetween(currentUserId, request.targetUserId());
+                if (!existingDirect.isEmpty()) {
+                    log.debug("Found existing direct conversation: id={} between user1={} and user2={}", existingDirect.get(0).getId(), currentUserId, request.targetUserId());
+                    return toConversationResponse(existingDirect.get(0));
+                }
 
-            Conversation conversation = new Conversation();
-            conversation.setType(ConversationType.DIRECT);
-            conversation.setCreatedBy(currentUser);
-            conversation.setArchived(false);
+                Conversation conversation = new Conversation();
+                conversation.setType(ConversationType.DIRECT);
+                conversation.setCreatedBy(currentUser);
+                conversation.setArchived(false);
 
-            conversation = conversationRepository.save(conversation);
+                conversation = conversationRepository.save(conversation);
 
-            ConversationMember member1 = new ConversationMember(conversation, currentUser, ConversationMemberRole.MEMBER);
-            ConversationMember member2 = new ConversationMember(conversation, targetUser, ConversationMemberRole.MEMBER);
+                ConversationMember member1 = new ConversationMember(conversation, currentUser, ConversationMemberRole.MEMBER);
+                ConversationMember member2 = new ConversationMember(conversation, targetUser, ConversationMemberRole.MEMBER);
 
-            conversationMemberRepository.saveAll(List.of(member1, member2));
+                conversationMemberRepository.saveAll(List.of(member1, member2));
 
-            log.info("Created direct conversation: id={} between user1={} and user2={}", conversation.getId(), currentUserId, request.targetUserId());
-            auditService.recordAuthEvent(currentUser, AuditAction.CONVERSATION_CREATED, "CONVERSATION", conversation.getId(), null, null,
-                    Map.of("type", "DIRECT", "targetUserId", request.targetUserId().toString()));
+                log.info("Created direct conversation: id={} between user1={} and user2={}", conversation.getId(), currentUserId, request.targetUserId());
+                auditService.recordAuthEvent(currentUser, AuditAction.CONVERSATION_CREATED, "CONVERSATION", conversation.getId(), null, null,
+                        Map.of("type", "DIRECT", "targetUserId", request.targetUserId().toString()));
 
-            return toConversationResponse(conversation);
+                return toConversationResponse(conversation);
+            });
         }
     }
 
