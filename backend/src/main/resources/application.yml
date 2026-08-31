@@ -1,15 +1,90 @@
+# ==============================================================================
+# LogiConnect Platform - Base Application Configuration
+# ==============================================================================
 spring:
   application:
     name: logiconnect-platform
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  # Jackson / JSON Serialization Configuration (UTC Timestamps)
+  jackson:
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSS'Z'
+    time-zone: UTC
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # JPA & Hibernate Settings
   jpa:
     open-in-view: false
     properties:
       hibernate:
+        jdbc:
+          time_zone: UTC
         format_sql: true
 
+  # Flyway Database Migration Configuration
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+# Server Configuration
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /api/v1
+  error:
+    include-stacktrace: never
+    include-message: never
+
+# Spring Boot Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+# OpenAPI / Swagger Documentation
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operationsSorter: method
+    tagsSorter: alpha
+    display-request-duration: true
+
+# LogiConnect Custom Application Configuration
+app:
+  jwt:
+    # 256-bit+ HMAC secret key (must be overridden in production via JWT_SECRET env var)
+    secret: ${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    # Access Token expiration: default 15 minutes (in milliseconds)
+    access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
+    # Refresh Token expiration: default 7 days (in milliseconds)
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
+    issuer: logiconnect-platform
+  cors:
+    # Allowed frontend origins (comma-separated if multiple)
+    allowed-origins: ${APP_FRONTEND_URL:http://localhost:3000,http://localhost:5173}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: Authorization,Content-Type,X-Requested-With,Accept,Origin,Access-Control-Request-Method,Access-Control-Request-Headers
+    allow-credentials: true
+    max-age: 3600
