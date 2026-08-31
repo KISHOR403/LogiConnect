@@ -29,9 +29,25 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
             Pageable pageable
     );
 
+    @Query(value = """
+            SELECT m FROM Message m
+            LEFT JOIN FETCH m.sender s
+            LEFT JOIN FETCH s.employee e
+            WHERE m.channel.id = :channelId
+            """,
+            countQuery = """
+            SELECT COUNT(m) FROM Message m
+            WHERE m.channel.id = :channelId
+            """)
+    Page<Message> findByChannelId(
+            @Param("channelId") UUID channelId,
+            Pageable pageable
+    );
+
     @Query("""
             SELECT m FROM Message m
             LEFT JOIN FETCH m.conversation c
+            LEFT JOIN FETCH m.channel ch
             LEFT JOIN FETCH m.sender s
             LEFT JOIN FETCH s.employee e
             LEFT JOIN FETCH m.replyToMessage rm

@@ -965,6 +965,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/MessageDetailEnvelope'
 
+  /channels/{channelId}/messages/{messageId}/pin:
+    post:
+      tags: [Messages]
+      summary: Pin Message in Channel
+      description: Pins a message to the top of the channel header (Admin/Moderator only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message pinned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetailEnvelope'
+    delete:
+      tags: [Messages]
+      summary: Unpin Message in Channel
+      description: Unpins a message from the channel header (Admin/Moderator only).
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: messageId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Message unpinned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageDetailEnvelope'
+
   /messages/{id}:
     patch:
       tags: [Messages]

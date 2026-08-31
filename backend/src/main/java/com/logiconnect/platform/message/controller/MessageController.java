@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@Tag(name = "Messages", description = "Message creation, history retrieval, message editing, soft deletion, and thread replies")
+@Tag(name = "Messages", description = "Message creation, history retrieval, message editing, soft deletion, thread replies, and pinning")
 public class MessageController {
 
     private final MessageService messageService;
@@ -26,6 +26,10 @@ public class MessageController {
     public MessageController(MessageService messageService) {
         this.messageService = messageService;
     }
+
+    // ==========================================
+    // 1. CONVERSATION MESSAGES
+    // ==========================================
 
     @PostMapping("/conversations/{conversationId}/messages")
     @Operation(summary = "Send message to conversation", description = "Posts a new message or attachment to a conversation (sender derived strictly from authenticated user)", security = @SecurityRequirement(name = "Bearer Authentication"))
@@ -52,6 +56,61 @@ public class MessageController {
         return ResponseEntity.ok(ApiResponse.success(response, "Messages retrieved successfully"));
     }
 
+    // ==========================================
+    // 2. CHANNEL MESSAGES
+    // ==========================================
+
+    @PostMapping("/channels/{channelId}/messages")
+    @Operation(summary = "Send message to channel", description = "Posts a new message or attachment to an organizational channel (sender derived strictly from authenticated user)", security = @SecurityRequirement(name = "Bearer Authentication"))
+    public ResponseEntity<ApiResponse<MessageResponse>> sendChannelMessage(
+            @PathVariable UUID channelId,
+            @Valid @RequestBody SendMessageRequest request
+    ) {
+        UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        MessageResponse response = messageService.sendChannelMessage(channelId, request, currentUserId);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created(response, "Channel message sent successfully"));
+    }
+
+    @GetMapping("/channels/{channelId}/messages")
+    @Operation(summary = "List channel messages", description = "Returns a paginated list of messages for an organizational channel ordered chronologically", security = @SecurityRequirement(name = "Bearer Authentication"))
+    public ResponseEntity<ApiResponse<PageResponse<MessageResponse>>> listChannelMessages(
+            @PathVariable UUID channelId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "desc") String direction
+    ) {
+        UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        PageResponse<MessageResponse> response = messageService.listChannelMessages(channelId, page, size, direction, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Channel messages retrieved successfully"));
+    }
+
+    @PostMapping("/channels/{channelId}/messages/{messageId}/pin")
+    @Operation(summary = "Pin message in channel", description = "Pins a message to the channel header (Channel Admin or Moderator only)", security = @SecurityRequirement(name = "Bearer Authentication"))
+    public ResponseEntity<ApiResponse<MessageResponse>> pinChannelMessage(
+            @PathVariable UUID channelId,
+            @PathVariable UUID messageId
+    ) {
+        UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        MessageResponse response = messageService.pinChannelMessage(channelId, messageId, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Message pinned successfully"));
+    }
+
+    @DeleteMapping("/channels/{channelId}/messages/{messageId}/pin")
+    @Operation(summary = "Unpin message in channel", description = "Unpins a message from the channel header (Channel Admin or Moderator only)", security = @SecurityRequirement(name = "Bearer Authentication"))
+    public ResponseEntity<ApiResponse<MessageResponse>> unpinChannelMessage(
+            @PathVariable UUID channelId,
+            @PathVariable UUID messageId
+    ) {
+        UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
+        MessageResponse response = messageService.unpinChannelMessage(channelId, messageId, currentUserId);
+        return ResponseEntity.ok(ApiResponse.success(response, "Message unpinned successfully"));
+    }
+
+    // ==========================================
+    // 3. COMMON MESSAGE OPERATIONS
+    // ==========================================
+
     @GetMapping("/messages/{id}")
     @Operation(summary = "Get message by ID", description = "Retrieves a single message by ID if authorized", security = @SecurityRequirement(name = "Bearer Authentication"))
     public ResponseEntity<ApiResponse<MessageResponse>> getMessageById(@PathVariable UUID id) {
@@ -72,7 +131,7 @@ public class MessageController {
     }
 
     @DeleteMapping("/messages/{id}")
-    @Operation(summary = "Delete message", description = "Soft-deletes a message (sender only)", security = @SecurityRequirement(name = "Bearer Authentication"))
+    @Operation(summary = "Delete message", description = "Soft-deletes a message (sender or channel moderator)", security = @SecurityRequirement(name = "Bearer Authentication"))
     public ResponseEntity<ApiResponse<MessageResponse>> deleteMessage(@PathVariable UUID id) {
         UUID currentUserId = SecurityUtils.getCurrentUserId().orElse(null);
         MessageResponse response = messageService.softDeleteMessage(id, currentUserId);

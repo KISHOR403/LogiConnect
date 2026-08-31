@@ -103,6 +103,12 @@ class AuthIntegrationTest {
     private ConversationMemberRepository conversationMemberRepository;
 
     @Autowired
+    private com.logiconnect.platform.channel.repository.ChannelRepository channelRepository;
+
+    @Autowired
+    private com.logiconnect.platform.channel.repository.ChannelMemberRepository channelMemberRepository;
+
+    @Autowired
     private MessageRepository messageRepository;
 
     @Autowired
@@ -127,6 +133,8 @@ class AuthIntegrationTest {
         messageRepository.deleteAll();
         conversationMemberRepository.deleteAll();
         conversationRepository.deleteAll();
+        channelMemberRepository.deleteAll();
+        channelRepository.deleteAll();
         userSessionRepository.deleteAll();
         auditLogRepository.deleteAll();
         userRepository.deleteAll();

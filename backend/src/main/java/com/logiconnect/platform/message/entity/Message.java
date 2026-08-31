@@ -1,5 +1,6 @@
 package com.logiconnect.platform.message.entity;
 
+import com.logiconnect.platform.channel.entity.Channel;
 import com.logiconnect.platform.conversation.entity.Conversation;
 import com.logiconnect.platform.user.entity.User;
 import jakarta.persistence.*;
@@ -12,7 +13,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Message entity supporting conversation rooms, sender attribution, thread replies, and soft deletes.
+ * Message entity supporting conversation rooms, channels, sender attribution, thread replies, and soft deletes.
  */
 @Entity
 @Table(name = "messages")
@@ -26,8 +27,9 @@ public class Message {
     @JoinColumn(name = "conversation_id")
     private Conversation conversation;
 
-    @Column(name = "channel_id")
-    private UUID channelId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "channel_id")
+    private Channel channel;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_id")
@@ -79,12 +81,12 @@ public class Message {
         this.conversation = conversation;
     }
 
-    public UUID getChannelId() {
-        return channelId;
+    public Channel getChannel() {
+        return channel;
     }
 
-    public void setChannelId(UUID channelId) {
-        this.channelId = channelId;
+    public void setChannel(Channel channel) {
+        this.channel = channel;
     }
 
     public User getSender() {

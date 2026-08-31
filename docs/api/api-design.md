@@ -549,7 +549,21 @@ Unified, high-throughput message streaming with cursor-based pagination and rich
 - **Authentication**: Bearer Token
 - **Authorization**: Message Sender OR Channel Admin/Moderator (`DELETE_MESSAGE`)
 - **Path Parameters**: `id` (UUID)
-- **Response**: `204 NO CONTENT`
+- **Response**: `200 OK` with `MessageResponse` (or `204 NO CONTENT`)
+
+#### 8.7 POST `/api/v1/channels/{channelId}/messages/{messageId}/pin`
+- **Purpose**: Pin an important message to the channel header.
+- **Authentication**: Bearer Token
+- **Authorization**: Channel Admin or Moderator (or `SUPER_ADMIN`)
+- **Path Parameters**: `channelId` (UUID), `messageId` (UUID)
+- **Response**: `200 OK` with `MessageResponse` (where `isPinned: true`)
+
+#### 8.8 DELETE `/api/v1/channels/{channelId}/messages/{messageId}/pin`
+- **Purpose**: Unpin a message from the channel header.
+- **Authentication**: Bearer Token
+- **Authorization**: Channel Admin or Moderator (or `SUPER_ADMIN`)
+- **Path Parameters**: `channelId` (UUID), `messageId` (UUID)
+- **Response**: `200 OK` with `MessageResponse` (where `isPinned: false`)
 
 ---
 
