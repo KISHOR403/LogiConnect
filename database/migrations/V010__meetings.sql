@@ -1,0 +1,2 @@
+-- Migration: V010__meetings.sql
+-- Schema definition will be implemented in the database design phase.

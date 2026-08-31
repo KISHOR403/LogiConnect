@@ -1,0 +1,2 @@
+-- Migration: V012__notifications.sql
+-- Schema definition will be implemented in the database design phase.

@@ -1,0 +1,2 @@
+-- Migration: V005__roles_permissions.sql
+-- Schema definition will be implemented in the database design phase.

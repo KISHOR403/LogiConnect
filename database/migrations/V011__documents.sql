@@ -1,0 +1,2 @@
+-- Migration: V011__documents.sql
+-- Schema definition will be implemented in the database design phase.

@@ -1,0 +1,2 @@
+-- Migration: V006__conversations.sql
+-- Schema definition will be implemented in the database design phase.

@@ -1,0 +1,2 @@
+-- Migration: V001__initial_schema.sql
+-- Schema definition will be implemented in the database design phase.
