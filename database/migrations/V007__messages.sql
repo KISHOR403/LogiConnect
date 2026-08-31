@@ -1,2 +1,0 @@
--- Migration: V007__messages.sql
--- Schema definition will be implemented in the database design phase.

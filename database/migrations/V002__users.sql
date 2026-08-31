@@ -1,2 +1,0 @@
--- Migration: V002__users.sql
--- Schema definition will be implemented in the database design phase.

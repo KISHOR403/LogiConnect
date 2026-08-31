@@ -1,2 +1,0 @@
--- Migration: V004__departments.sql
--- Schema definition will be implemented in the database design phase.

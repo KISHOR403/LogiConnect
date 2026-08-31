@@ -1,19 +1,33 @@
-# LogiConnect - Database
+# LogiConnect - Database Architecture & Migrations
 
-PostgreSQL database schemas, versioned Flyway migrations, and development seed data.
+PostgreSQL database schemas, versioned Flyway migrations, and development seed fixtures for the LogiConnect enterprise logistics collaboration platform.
 
-## Migration Files
+## Directory Structure
 
-- `V001__initial_schema.sql`: Base extensions, schemas, and common metadata
-- `V002__users.sql`: User accounts and authentication credentials
-- `V003__employees.sql`: Employee directory profiles and logistics roles
-- `V004__departments.sql`: Department units and organizational hierarchy
-- `V005__roles_permissions.sql`: RBAC system permissions and role mappings
-- `V006__conversations.sql`: One-on-one and group conversation threads
-- `V007__messages.sql`: Messages, delivery statuses, and attachments
-- `V008__channels.sql`: Department and operational channels
-- `V009__announcements.sql`: Enterprise broadcast notices and acknowledgements
-- `V010__meetings.sql`: Meeting scheduling, shift handoffs, and video links
-- `V011__documents.sql`: Operational documents, policy files, and attachments
-- `V012__notifications.sql`: User notifications and delivery records
-- `V013__audit_logs.sql`: Security and activity audit logging
+```
+database/
+├── migrations/
+│   └── V1__initial_schema.sql         # Base initial schema (PostgreSQL DDL)
+├── seeds/
+│   ├── development/
+│   │   └── seed_data.sql              # Minimal development fixtures
+│   └── test/
+│       └── .gitkeep                   # Test fixtures placeholder
+└── README.md
+```
+
+## Migration Workflow (Flyway)
+
+1. Migrations are located in `database/migrations/` and synchronized to `backend/src/main/resources/db/migration/`.
+2. Initial version: `V1__initial_schema.sql`.
+3. To run migrations via Flyway CLI or Spring Boot:
+   - When Spring Boot starts with `spring.jpa.hibernate.ddl-auto=validate`, Flyway automatically executes pending SQL migrations in alphabetical/version sequence.
+
+## Development Fixtures
+
+- `database/seeds/development/seed_data.sql`:
+  - Standard enterprise roles (`SUPER_ADMIN`, `HR_ADMIN`, `MANAGER`, `TEAM_LEADER`, `EMPLOYEE`).
+  - Granular permissions mapped across modules.
+  - Core logistics departments and operational teams.
+  - Five non-production sample accounts with BCrypt-hashed credentials (`Password@123`).
+  - Default company broadcast channels and sample acknowledgement tracking.

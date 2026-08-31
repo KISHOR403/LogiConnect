@@ -1,2 +1,0 @@
--- Migration: V008__channels.sql
--- Schema definition will be implemented in the database design phase.

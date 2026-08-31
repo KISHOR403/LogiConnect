@@ -1,2 +1,0 @@
--- Migration: V003__employees.sql
--- Schema definition will be implemented in the database design phase.

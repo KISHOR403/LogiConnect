@@ -1,0 +1,315 @@
+erDiagram
+    %% ========================================================================
+    %% LogiConnect Platform - Entity-Relationship Diagram
+    %% ========================================================================
+
+    DEPARTMENTS ||--o{ TEAMS : "contains"
+    DEPARTMENTS ||--o{ EMPLOYEES : "has members"
+    DEPARTMENTS ||--o{ CHANNELS : "owns"
+    DEPARTMENTS ||--o{ ANNOUNCEMENTS : "targets"
+    DEPARTMENTS ||--o{ DOCUMENTS : "owns"
+    DEPARTMENTS ||--o{ MEETINGS : "hosts"
+
+    TEAMS ||--o{ EMPLOYEES : "has members"
+    TEAMS ||--o{ CHANNELS : "owns"
+    TEAMS ||--o{ ANNOUNCEMENTS : "targets"
+    TEAMS ||--o{ DOCUMENTS : "owns"
+    TEAMS ||--o{ MEETINGS : "hosts"
+
+    EMPLOYEES ||--o| USERS : "authenticates as"
+    EMPLOYEES ||--o{ EMPLOYEES : "manages"
+    EMPLOYEES ||--o| DEPARTMENTS : "manages dept"
+    EMPLOYEES ||--o| TEAMS : "leads team"
+
+    USERS ||--o{ USER_ROLES : "assigned"
+    ROLES ||--o{ USER_ROLES : "granted to"
+    ROLES ||--o{ ROLE_PERMISSIONS : "includes"
+    PERMISSIONS ||--o{ ROLE_PERMISSIONS : "assigned to"
+
+    USERS ||--o{ CONVERSATION_MEMBERS : "participates in"
+    CONVERSATIONS ||--o{ CONVERSATION_MEMBERS : "has members"
+    CONVERSATIONS ||--o{ MESSAGES : "contains"
+
+    CHANNELS ||--o{ CHANNEL_MEMBERS : "has members"
+    USERS ||--o{ CHANNEL_MEMBERS : "joins"
+    CHANNELS ||--o{ MESSAGES : "contains"
+
+    USERS ||--o{ MESSAGES : "sends"
+    MESSAGES ||--o{ MESSAGES : "replies to"
+    MESSAGES ||--o{ MESSAGE_ATTACHMENTS : "includes"
+
+    USERS ||--o{ ANNOUNCEMENTS : "creates"
+    ANNOUNCEMENTS ||--o{ ANNOUNCEMENT_READS : "tracked in"
+    USERS ||--o{ ANNOUNCEMENT_READS : "reads/acknowledges"
+
+    USERS ||--o{ DOCUMENTS : "uploads"
+
+    USERS ||--o{ MEETINGS : "organizes"
+    MEETINGS ||--o{ MEETING_PARTICIPANTS : "invites"
+    USERS ||--o{ MEETING_PARTICIPANTS : "responds as"
+
+    USERS ||--o{ NOTIFICATIONS : "receives"
+    USERS ||--o{ AUDIT_LOGS : "performs"
+
+    %% ========================================================================
+    %% Entity Definitions
+    %% ========================================================================
+
+    DEPARTMENTS {
+        uuid id PK
+        varchar code UK
+        varchar name UK
+        text description
+        uuid manager_id FK
+        varchar status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    TEAMS {
+        uuid id PK
+        uuid department_id FK
+        varchar code UK
+        varchar name
+        text description
+        uuid team_lead_id FK
+        varchar status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    EMPLOYEES {
+        uuid id PK
+        varchar employee_code UK
+        varchar first_name
+        varchar last_name
+        varchar email UK
+        varchar phone
+        varchar profile_photo_url
+        varchar designation
+        uuid department_id FK
+        uuid team_id FK
+        uuid manager_id FK
+        varchar location
+        date joining_date
+        date exit_date
+        varchar status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USERS {
+        uuid id PK
+        uuid employee_id FK,UK
+        varchar email UK
+        varchar password_hash
+        varchar status
+        int failed_login_attempts
+        timestamptz locked_until
+        timestamptz last_login_at
+        timestamptz password_changed_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ROLES {
+        uuid id PK
+        varchar name UK
+        varchar display_name
+        text description
+        boolean is_system
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    PERMISSIONS {
+        uuid id PK
+        varchar name UK
+        varchar display_name
+        varchar module
+        text description
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    USER_ROLES {
+        uuid user_id PK,FK
+        uuid role_id PK,FK
+        timestamptz assigned_at
+        uuid assigned_by FK
+    }
+
+    ROLE_PERMISSIONS {
+        uuid role_id PK,FK
+        uuid permission_id PK,FK
+        timestamptz assigned_at
+    }
+
+    CONVERSATIONS {
+        uuid id PK
+        varchar type
+        varchar name
+        text description
+        varchar avatar_url
+        uuid created_by FK
+        boolean is_archived
+        timestamptz last_message_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CONVERSATION_MEMBERS {
+        uuid conversation_id PK,FK
+        uuid user_id PK,FK
+        varchar role
+        timestamptz joined_at
+        timestamptz left_at
+        timestamptz last_read_at
+        boolean is_muted
+        boolean is_pinned
+    }
+
+    CHANNELS {
+        uuid id PK
+        varchar name
+        varchar slug UK
+        text description
+        varchar type
+        uuid department_id FK
+        uuid team_id FK
+        uuid created_by FK
+        varchar status
+        boolean is_read_only
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CHANNEL_MEMBERS {
+        uuid channel_id PK,FK
+        uuid user_id PK,FK
+        varchar role
+        timestamptz joined_at
+        timestamptz last_read_at
+        boolean is_muted
+    }
+
+    MESSAGES {
+        uuid id PK
+        uuid conversation_id FK
+        uuid channel_id FK
+        uuid sender_id FK
+        varchar message_type
+        text content
+        uuid reply_to_message_id FK
+        boolean is_pinned
+        timestamptz created_at
+        timestamptz edited_at
+        timestamptz deleted_at
+    }
+
+    MESSAGE_ATTACHMENTS {
+        uuid id PK
+        uuid message_id FK
+        varchar storage_key
+        varchar file_url
+        varchar file_name
+        varchar file_type
+        bigint file_size
+        timestamptz created_at
+    }
+
+    ANNOUNCEMENTS {
+        uuid id PK
+        varchar title
+        text content
+        uuid created_by FK
+        varchar priority
+        varchar audience_type
+        uuid department_id FK
+        uuid team_id FK
+        varchar target_location
+        uuid target_role_id FK
+        timestamptz published_at
+        timestamptz expires_at
+        boolean requires_acknowledgement
+        varchar status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    ANNOUNCEMENT_READS {
+        uuid id PK
+        uuid announcement_id FK
+        uuid user_id FK
+        timestamptz read_at
+        timestamptz acknowledged_at
+    }
+
+    DOCUMENTS {
+        uuid id PK
+        varchar name
+        text description
+        varchar storage_key UK
+        varchar file_url
+        varchar file_type
+        bigint file_size
+        varchar checksum
+        uuid uploaded_by FK
+        uuid department_id FK
+        uuid team_id FK
+        varchar visibility
+        varchar status
+        timestamptz deleted_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    MEETINGS {
+        uuid id PK
+        varchar title
+        text description
+        uuid organizer_id FK
+        timestamptz start_time
+        timestamptz end_time
+        varchar location
+        varchar meeting_link
+        varchar status
+        uuid department_id FK
+        uuid team_id FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    MEETING_PARTICIPANTS {
+        uuid meeting_id PK,FK
+        uuid user_id PK,FK
+        varchar response
+        timestamptz joined_at
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    NOTIFICATIONS {
+        uuid id PK
+        uuid user_id FK
+        varchar type
+        varchar title
+        text message
+        varchar reference_type
+        uuid reference_id
+        boolean is_read
+        timestamptz read_at
+        timestamptz created_at
+    }
+
+    AUDIT_LOGS {
+        uuid id PK
+        uuid actor_id FK
+        varchar action
+        varchar entity_type
+        uuid entity_id
+        varchar ip_address
+        text user_agent
+        jsonb metadata
+        timestamptz created_at
+    }
