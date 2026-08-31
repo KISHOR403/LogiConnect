@@ -1,8 +1,10 @@
 -- ============================================================================
 -- LogiConnect Platform - PostgreSQL Initial Database Schema
 -- Migration: V1__initial_schema.sql
+-- Authoritative Location: backend/src/main/resources/db/migration/V1__initial_schema.sql
 -- Description: Core schema for logistics enterprise collaboration platform (2,000+ employees)
 -- Compatible with: PostgreSQL 14+, Spring Boot 3+, Spring Data JPA, Hibernate
+-- Entities: 21 Core Tables across 9 Domains
 -- ============================================================================
 
 -- Enable UUID extension (PostgreSQL pgcrypto)
@@ -21,12 +23,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Immutability enforcement trigger function for audit logs
+CREATE OR REPLACE FUNCTION trigger_enforce_immutability()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'Audit log records are immutable. UPDATE and DELETE operations are prohibited.';
+END;
+$$ LANGUAGE plpgsql;
+
 -- ============================================================================
--- 2. ORGANIZATIONAL STRUCTURE DOMAIN (Departments, Teams, Employees)
+-- 2. ORGANIZATIONAL STRUCTURE DOMAIN (3 Tables: departments, teams, employees)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: departments
+-- Table 1: departments
 -- Purpose: Top-level organizational departments (e.g., Operations, Warehouse, HR)
 -- ----------------------------------------------------------------------------
 CREATE TABLE departments (
@@ -41,7 +51,7 @@ CREATE TABLE departments (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: teams
+-- Table 2: teams
 -- Purpose: Functional units within departments (e.g., Bangalore Ops, Mumbai Support)
 -- ----------------------------------------------------------------------------
 CREATE TABLE teams (
@@ -58,8 +68,8 @@ CREATE TABLE teams (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: employees
--- Purpose: Core employee profile and directory details
+-- Table 3: employees
+-- Purpose: Core employee profile and corporate directory details
 -- ----------------------------------------------------------------------------
 CREATE TABLE employees (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -89,12 +99,12 @@ ALTER TABLE teams
     ADD CONSTRAINT fk_teams_team_lead FOREIGN KEY (team_lead_id) REFERENCES employees(id) ON DELETE SET NULL;
 
 -- ============================================================================
--- 3. AUTHENTICATION & ACCESS CONTROL DOMAIN (Users, Roles, Permissions)
+-- 3. AUTHENTICATION & ACCESS CONTROL DOMAIN (5 Tables: users, roles, permissions, user_roles, role_permissions)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: users
--- Purpose: Authentication credentials, login state, and security flags
+-- Table 4: users
+-- Purpose: Authentication credentials, login state, and security flags (Strict 1-to-1 with employees)
 -- ----------------------------------------------------------------------------
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,7 +121,7 @@ CREATE TABLE users (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: roles
+-- Table 5: roles
 -- Purpose: System and business security roles (e.g., SUPER_ADMIN, MANAGER, EMPLOYEE)
 -- ----------------------------------------------------------------------------
 CREATE TABLE roles (
@@ -125,7 +135,7 @@ CREATE TABLE roles (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: permissions
+-- Table 6: permissions
 -- Purpose: Granular operation permissions for RBAC enforcement
 -- ----------------------------------------------------------------------------
 CREATE TABLE permissions (
@@ -139,7 +149,7 @@ CREATE TABLE permissions (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: user_roles
+-- Table 7: user_roles
 -- Purpose: Many-to-many relationship linking users to roles
 -- ----------------------------------------------------------------------------
 CREATE TABLE user_roles (
@@ -151,7 +161,7 @@ CREATE TABLE user_roles (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: role_permissions
+-- Table 8: role_permissions
 -- Purpose: Many-to-many relationship linking roles to permissions
 -- ----------------------------------------------------------------------------
 CREATE TABLE role_permissions (
@@ -162,11 +172,11 @@ CREATE TABLE role_permissions (
 );
 
 -- ============================================================================
--- 4. COMMUNICATION & MESSAGING DOMAIN (Conversations, Channels, Messages)
+-- 4. COMMUNICATION & MESSAGING DOMAIN (6 Tables: conversations, conversation_members, channels, channel_members, messages, message_attachments)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: conversations
+-- Table 9: conversations
 -- Purpose: Direct (1:1) and ad-hoc multi-party group chat rooms
 -- ----------------------------------------------------------------------------
 CREATE TABLE conversations (
@@ -183,8 +193,8 @@ CREATE TABLE conversations (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: conversation_members
--- Purpose: Participants belonging to a conversation room
+-- Table 10: conversation_members
+-- Purpose: Participants belonging to a direct or group conversation room
 -- ----------------------------------------------------------------------------
 CREATE TABLE conversation_members (
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -199,8 +209,13 @@ CREATE TABLE conversation_members (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: channels
+-- Table 11: channels
 -- Purpose: Topic-based, department-based, or team-based organizational channels
+-- Authorization rules:
+--   COMPANY: Accessible company-wide to all active employees.
+--   DEPARTMENT: Accessible to employees where employee.department_id = channel.department_id.
+--   TEAM: Accessible to employees where employee.team_id = channel.team_id.
+--   PRIVATE: Explicitly restricted to records in channel_members.
 -- ----------------------------------------------------------------------------
 CREATE TABLE channels (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,8 +233,8 @@ CREATE TABLE channels (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: channel_members
--- Purpose: Membership records for private and specific targeted channels
+-- Table 12: channel_members
+-- Purpose: Explicit membership records for private channels & customized preferences
 -- ----------------------------------------------------------------------------
 CREATE TABLE channel_members (
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -232,8 +247,9 @@ CREATE TABLE channel_members (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: messages
+-- Table 13: messages
 -- Purpose: Chat and broadcast messages in conversations or channels
+-- Container rule: Must belong to EITHER conversation OR channel (never both, never neither)
 -- ----------------------------------------------------------------------------
 CREATE TABLE messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -254,8 +270,8 @@ CREATE TABLE messages (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: message_attachments
--- Purpose: Object metadata for files/images attached to messages
+-- Table 14: message_attachments
+-- Purpose: Object storage metadata for files/images attached to messages (No binaries in DB)
 -- ----------------------------------------------------------------------------
 CREATE TABLE message_attachments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -269,12 +285,13 @@ CREATE TABLE message_attachments (
 );
 
 -- ============================================================================
--- 5. COMPANY BROADCAST DOMAIN (Announcements & Acknowledgement Tracking)
+-- 5. COMPANY BROADCAST DOMAIN (2 Tables: announcements, announcement_reads)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: announcements
+-- Table 15: announcements
 -- Purpose: Official corporate communications, policy broadcasts, emergency notices
+-- Targeting: audience_type supports ALL, DEPARTMENT, TEAM, ROLE, INDIVIDUAL, ALL_EMPLOYEES
 -- ----------------------------------------------------------------------------
 CREATE TABLE announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -282,11 +299,11 @@ CREATE TABLE announcements (
     content TEXT NOT NULL,
     created_by UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     priority VARCHAR(20) NOT NULL DEFAULT 'NORMAL' CHECK (priority IN ('NORMAL', 'IMPORTANT', 'URGENT', 'EMERGENCY')),
-    audience_type VARCHAR(30) NOT NULL DEFAULT 'ALL_EMPLOYEES' CHECK (audience_type IN ('ALL_EMPLOYEES', 'DEPARTMENT', 'TEAM', 'LOCATION', 'ROLE')),
+    audience_type VARCHAR(30) NOT NULL DEFAULT 'ALL' CHECK (audience_type IN ('ALL', 'DEPARTMENT', 'TEAM', 'ROLE', 'INDIVIDUAL', 'ALL_EMPLOYEES')),
     department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
     team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
-    target_location VARCHAR(100),
     target_role_id UUID REFERENCES roles(id) ON DELETE SET NULL,
+    target_location VARCHAR(100),
     published_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ,
     requires_acknowledgement BOOLEAN NOT NULL DEFAULT FALSE,
@@ -296,8 +313,9 @@ CREATE TABLE announcements (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: announcement_reads
--- Purpose: Auditable tracking of employee reads and explicit acknowledgements
+-- Table 16: announcement_reads
+-- Purpose: Auditable tracking of employee reads and mandatory acknowledgements
+-- Uniqueness: Each user has exactly one read/acknowledgement record per announcement
 -- ----------------------------------------------------------------------------
 CREATE TABLE announcement_reads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -309,11 +327,11 @@ CREATE TABLE announcement_reads (
 );
 
 -- ============================================================================
--- 6. DOCUMENT MANAGEMENT DOMAIN (Documents & Operational Resources)
+-- 6. DOCUMENT MANAGEMENT DOMAIN (1 Table: documents)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: documents
+-- Table 17: documents
 -- Purpose: Metadata and object store pointers for logistics policies, SOPs, files
 -- ----------------------------------------------------------------------------
 CREATE TABLE documents (
@@ -336,11 +354,11 @@ CREATE TABLE documents (
 );
 
 -- ============================================================================
--- 7. CALENDAR & COLLABORATION DOMAIN (Meetings & Participants)
+-- 7. CALENDAR & COLLABORATION DOMAIN (2 Tables: meetings, meeting_participants)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: meetings
+-- Table 18: meetings
 -- Purpose: Shift handoffs, team syncs, and operational meetings
 -- ----------------------------------------------------------------------------
 CREATE TABLE meetings (
@@ -361,8 +379,9 @@ CREATE TABLE meetings (
 );
 
 -- ----------------------------------------------------------------------------
--- Table: meeting_participants
+-- Table 19: meeting_participants
 -- Purpose: Meeting invitations, attendance statuses, and RSVP confirmations
+-- Uniqueness: Composite PK (meeting_id, user_id) guarantees single RSVP per participant
 -- ----------------------------------------------------------------------------
 CREATE TABLE meeting_participants (
     meeting_id UUID NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
@@ -375,11 +394,11 @@ CREATE TABLE meeting_participants (
 );
 
 -- ============================================================================
--- 8. NOTIFICATIONS DOMAIN
+-- 8. NOTIFICATIONS DOMAIN (1 Table: notifications)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: notifications
+-- Table 20: notifications
 -- Purpose: In-app and real-time event notifications for users
 -- ----------------------------------------------------------------------------
 CREATE TABLE notifications (
@@ -396,12 +415,12 @@ CREATE TABLE notifications (
 );
 
 -- ============================================================================
--- 9. ENTERPRISE AUDIT & COMPLIANCE DOMAIN
+-- 9. ENTERPRISE AUDIT & COMPLIANCE DOMAIN (1 Table: audit_logs)
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
--- Table: audit_logs
--- Purpose: Immutable security audit trail with structured JSON context
+-- Table 21: audit_logs
+-- Purpose: Immutable, append-only security audit trail (INSERT allowed; UPDATE & DELETE prohibited)
 -- ----------------------------------------------------------------------------
 CREATE TABLE audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -416,7 +435,7 @@ CREATE TABLE audit_logs (
 );
 
 -- ============================================================================
--- 10. INDEXES (High-Frequency Queries Optimization)
+-- 10. INDEXES (High-Frequency Queries & Filtering Optimization)
 -- ============================================================================
 
 -- Organizational Domain Indexes
@@ -430,7 +449,6 @@ CREATE INDEX idx_employees_status ON employees(status);
 CREATE INDEX idx_employees_location ON employees(location);
 
 -- Authentication Domain Indexes
-CREATE INDEX idx_users_employee_id ON users(employee_id);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 CREATE INDEX idx_role_permissions_perm_id ON role_permissions(permission_id);
@@ -443,7 +461,7 @@ CREATE INDEX idx_channels_team_id ON channels(team_id);
 CREATE INDEX idx_channels_type_status ON channels(type, status);
 CREATE INDEX idx_channel_members_user_id ON channel_members(user_id);
 
--- Optimized Paginated Message Queries (Filtered Partial Indexes for Active Messages)
+-- Filtered Partial Indexes for Active Paginated Messages
 CREATE INDEX idx_messages_conv_created ON messages(conversation_id, created_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX idx_messages_chan_created ON messages(channel_id, created_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX idx_messages_sender_id ON messages(sender_id);
@@ -480,7 +498,7 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at DESC);
 CREATE INDEX idx_audit_logs_metadata_gin ON audit_logs USING GIN (metadata);
 
 -- ============================================================================
--- 11. AUTOMATIC UPDATED_AT TRIGGERS
+-- 11. AUTOMATIC UPDATED_AT TRIGGERS & AUDIT IMMUTABILITY ENFORCEMENT
 -- ============================================================================
 
 CREATE TRIGGER trg_departments_updated_at BEFORE UPDATE ON departments FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -495,3 +513,6 @@ CREATE TRIGGER trg_announcements_updated_at BEFORE UPDATE ON announcements FOR E
 CREATE TRIGGER trg_documents_updated_at BEFORE UPDATE ON documents FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_meetings_updated_at BEFORE UPDATE ON meetings FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 CREATE TRIGGER trg_meeting_participants_updated_at BEFORE UPDATE ON meeting_participants FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+-- Enforce append-only immutability on audit_logs
+CREATE TRIGGER trg_audit_logs_immutability BEFORE UPDATE OR DELETE ON audit_logs FOR EACH ROW EXECUTE FUNCTION trigger_enforce_immutability();

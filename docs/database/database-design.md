@@ -7,9 +7,10 @@
 The primary mission is to provide an authorized, secure, and auditable communication infrastructure that eliminates company reliance on unmanaged consumer tools (such as WhatsApp groups). It guarantees:
 - Strict corporate identity and organizational hierarchy enforcement (Company &rarr; Department &rarr; Team &rarr; Employee).
 - Granular Role-Based Access Control (RBAC).
+- Dynamic channel authorization aligned with organizational structure.
 - Guaranteed delivery, reading, and non-repudiation tracking for corporate announcements and emergency operational broadcasts.
 - High-throughput direct and team communication channels with rich attachments and thread support.
-- Comprehensive security and compliance audit logging.
+- Comprehensive security and immutable compliance audit logging.
 
 ---
 
@@ -21,49 +22,50 @@ The primary mission is to provide an authorized, secure, and auditable communica
 4. **Binary & Document Storage**: Zero blob/binary payload in PostgreSQL. Documents and attachments store object storage references (`storage_key`, `file_url`, `file_size`, `checksum`) targeting S3/MinIO/GCS.
 5. **Spring Data JPA & Hibernate Compatibility**: Standard snake_case column names, non-reserved keywords, composite keys mapped via `@Embeddable` / `@IdClass`, and explicit foreign keys.
 6. **Soft Deletion & Enterprise Retention**: Critical business communication and audit trails employ soft deletion (`deleted_at`, `status`) to comply with corporate retention and dispute resolution policies.
+7. **Authoritative Migration Source**: The single authoritative Flyway migration is located in `backend/src/main/resources/db/migration/V1__initial_schema.sql`.
 
 ---
 
 ## 3. Database Schema Specification
 
-The schema consists of **22 tables** organized across **9 business domains**.
+The schema consists of **21 tables** organized across **9 business domains**.
 
 ```
-LogiConnect Relational Schema
-├── 1. Organizational Structure Domain
+LogiConnect Relational Schema (21 Tables)
+├── 1. Organizational Structure Domain (3 Tables)
 │   ├── departments
 │   ├── teams
 │   └── employees
-├── 2. Authentication & Access Control Domain
+├── 2. Authentication & Access Control Domain (5 Tables)
 │   ├── users
 │   ├── roles
 │   ├── permissions
 │   ├── user_roles
 │   └── role_permissions
-├── 3. Communication & Messaging Domain
+├── 3. Communication & Messaging Domain (6 Tables)
 │   ├── conversations
 │   ├── conversation_members
 │   ├── channels
 │   ├── channel_members
 │   ├── messages
 │   └── message_attachments
-├── 4. Company Broadcast Domain
+├── 4. Company Broadcast Domain (2 Tables)
 │   ├── announcements
 │   └── announcement_reads
-├── 5. Document Management Domain
+├── 5. Document Management Domain (1 Table)
 │   └── documents
-├── 6. Calendar & Collaboration Domain
+├── 6. Calendar & Collaboration Domain (2 Tables)
 │   ├── meetings
 │   └── meeting_participants
-├── 7. Notification Domain
+├── 7. Notification Domain (1 Table)
 │   └── notifications
-└── 8. Enterprise Audit & Compliance Domain
+└── 8. Enterprise Audit & Compliance Domain (1 Table)
     └── audit_logs
 ```
 
 ---
 
-### Domain 1: Organizational Structure
+### Domain 1: Organizational Structure (3 Tables)
 
 #### `departments`
 Represents top-level corporate divisions (Operations, Warehouse, Customer Support, IT, HR, Finance).
@@ -107,12 +109,12 @@ HR-centric directory profile of every worker in the logistics enterprise.
 
 ---
 
-### Domain 2: Authentication & Access Control (RBAC)
+### Domain 2: Authentication & Access Control (5 Tables)
 
 #### `users`
 Security principal storing credentials, authentication flags, and session security state.
 - `id` (UUID, PK): Unique user account identifier.
-- `employee_id` (UUID, NOT NULL, UNIQUE, FK &rarr; `employees.id` ON DELETE CASCADE): 1-to-1 link to employee record.
+- `employee_id` (UUID, NOT NULL, UNIQUE, FK &rarr; `employees.id` ON DELETE CASCADE): Strict 1-to-1 link ensuring no multiple accounts reference the same employee.
 - `email` (VARCHAR(255), NOT NULL, UNIQUE): Login username / email identifier.
 - `password_hash` (VARCHAR(255), NOT NULL): Cryptographically hashed password (BCrypt/Argon2). Never plain text.
 - `status` (VARCHAR(20), NOT NULL, DEFAULT `'ACTIVE'`): `'ACTIVE'`, `'INACTIVE'`, `'LOCKED'`, `'PENDING_VERIFICATION'`.
@@ -157,7 +159,7 @@ Many-to-many junction between roles and granular permissions.
 
 ---
 
-### Domain 3: Communication & Messaging
+### Domain 3: Communication & Messaging (6 Tables)
 
 #### `conversations`
 Direct (1-to-1) and ad-hoc multi-member chat groups.
@@ -189,7 +191,7 @@ Structured organizational workspaces aligned with departments, hubs, or company-
 - `name` (VARCHAR(100), NOT NULL): E.g. `#bangalore-hub-ops`.
 - `slug` (VARCHAR(120), NOT NULL, UNIQUE): URL-safe identifier.
 - `description` (TEXT).
-- `type` (VARCHAR(20), NOT NULL): `'COMPANY'` (company-wide), `'DEPARTMENT'`, `'TEAM'`, `'PRIVATE'`.
+- `type` (VARCHAR(20), NOT NULL): `'COMPANY'`, `'DEPARTMENT'`, `'TEAM'`, `'PRIVATE'`.
 - `department_id` (UUID, FK &rarr; `departments.id` ON DELETE SET NULL).
 - `team_id` (UUID, FK &rarr; `teams.id` ON DELETE SET NULL).
 - `created_by` (UUID, FK &rarr; `users.id` ON DELETE SET NULL).
@@ -198,7 +200,7 @@ Structured organizational workspaces aligned with departments, hubs, or company-
 - `created_at` / `updated_at` (TIMESTAMPTZ, NOT NULL).
 
 #### `channel_members`
-Explicit membership and role tracking for private/restricted channels.
+Explicit membership records for private/restricted channels.
 - `channel_id` (UUID, NOT NULL, FK &rarr; `channels.id` ON DELETE CASCADE).
 - `user_id` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE CASCADE).
 - `role` (VARCHAR(20), NOT NULL, DEFAULT `'MEMBER'`): `'MEMBER'`, `'MODERATOR'`, `'ADMIN'`.
@@ -229,7 +231,7 @@ Unified message entity for direct chats, group rooms, and channels.
   ```
 
 #### `message_attachments`
-Rich media files, PDF delivery manifests, and images attached to messages.
+Rich media files, PDF delivery manifests, and images attached to messages (metadata only, no binary blobs in DB).
 - `id` (UUID, PK).
 - `message_id` (UUID, NOT NULL, FK &rarr; `messages.id` ON DELETE CASCADE).
 - `storage_key` (VARCHAR(500), NOT NULL).
@@ -241,7 +243,7 @@ Rich media files, PDF delivery manifests, and images attached to messages.
 
 ---
 
-### Domain 4: Company Broadcasts & Announcements
+### Domain 4: Company Broadcasts & Announcements (2 Tables)
 
 #### `announcements`
 Top-down enterprise broadcasts, health & safety notices, operational alerts.
@@ -250,11 +252,11 @@ Top-down enterprise broadcasts, health & safety notices, operational alerts.
 - `content` (TEXT, NOT NULL).
 - `created_by` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE RESTRICT).
 - `priority` (VARCHAR(20), NOT NULL, DEFAULT `'NORMAL'`): `'NORMAL'`, `'IMPORTANT'`, `'URGENT'`, `'EMERGENCY'`.
-- `audience_type` (VARCHAR(30), NOT NULL, DEFAULT `'ALL_EMPLOYEES'`): `'ALL_EMPLOYEES'`, `'DEPARTMENT'`, `'TEAM'`, `'LOCATION'`, `'ROLE'`.
+- `audience_type` (VARCHAR(30), NOT NULL, DEFAULT `'ALL'`): `'ALL'`, `'DEPARTMENT'`, `'TEAM'`, `'ROLE'`, `'INDIVIDUAL'`, `'ALL_EMPLOYEES'`.
 - `department_id` (UUID, FK &rarr; `departments.id` ON DELETE SET NULL).
 - `team_id` (UUID, FK &rarr; `teams.id` ON DELETE SET NULL).
-- `target_location` (VARCHAR(100)): Target specific logistics hub or regional office.
 - `target_role_id` (UUID, FK &rarr; `roles.id` ON DELETE SET NULL).
+- `target_location` (VARCHAR(100)): Target specific logistics hub or regional office.
 - `published_at` (TIMESTAMPTZ): Broadcast publication timestamp.
 - `expires_at` (TIMESTAMPTZ): Auto-archival cutoff.
 - `requires_acknowledgement` (BOOLEAN, NOT NULL, DEFAULT FALSE): Mandatory employee sign-off flag.
@@ -268,11 +270,11 @@ Non-repudiation audit table tracking who read and acknowledged official notices.
 - `user_id` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE CASCADE).
 - `read_at` (TIMESTAMPTZ, NOT NULL, DEFAULT CURRENT_TIMESTAMP).
 - `acknowledged_at` (TIMESTAMPTZ): Explicit acknowledgement timestamp.
-- **Constraints**: `UNIQUE (announcement_id, user_id)`.
+- **Constraints**: `UNIQUE (announcement_id, user_id)` (Guarantees exactly one record per employee per notice).
 
 ---
 
-### Domain 5: Document Management
+### Domain 5: Document Management (1 Table)
 
 #### `documents`
 Repository for operational SOPs, safety guidelines, compliance policies, and templates.
@@ -294,7 +296,7 @@ Repository for operational SOPs, safety guidelines, compliance policies, and tem
 
 ---
 
-### Domain 6: Calendar & Collaboration
+### Domain 6: Calendar & Collaboration (2 Tables)
 
 #### `meetings`
 Shift handover syncs, driver briefings, and regional management calls.
@@ -323,7 +325,7 @@ RSVP and attendance status for invited personnel.
 
 ---
 
-### Domain 7: Notifications
+### Domain 7: Notifications (1 Table)
 
 #### `notifications`
 In-app alerts and mobile notification queues.
@@ -340,10 +342,10 @@ In-app alerts and mobile notification queues.
 
 ---
 
-### Domain 8: Enterprise Security & Audit Trail
+### Domain 8: Enterprise Security & Audit Trail (1 Table)
 
 #### `audit_logs`
-Immutable compliance and security activity log.
+Append-only, immutable compliance and security activity log.
 - `id` (UUID, PK).
 - `actor_id` (UUID, FK &rarr; `users.id` ON DELETE SET NULL).
 - `action` (VARCHAR(100), NOT NULL): E.g. `USER_LOGIN`, `USER_LOCKED`, `EMPLOYEE_OFFBOARDED`, `ANNOUNCEMENT_ACKNOWLEDGED`, `PERMISSION_CHANGED`.
@@ -353,21 +355,54 @@ Immutable compliance and security activity log.
 - `user_agent` (TEXT): Browser/Client identifier.
 - `metadata` (JSONB): Structured contextual details (before/after snapshots, request parameters).
 - `created_at` (TIMESTAMPTZ, NOT NULL, DEFAULT CURRENT_TIMESTAMP).
+- **Immutability Enforcement**:
+  - `INSERT` permitted.
+  - `UPDATE` and `DELETE` strictly prevented via database-level trigger `trg_audit_logs_immutability`.
 
 ---
 
-## 4. Indexing & Query Optimization Strategy
+## 4. Organizational & Channel Authorization Model
 
-Indexes are created intentionally to optimize critical path queries without introducing unnecessary write overhead.
+The platform avoids duplicating thousands of redundant channel membership records for organizational units. Channel access is evaluated dynamically:
 
-| Table | Index Name | Columns / Condition | Optimized Workload |
+```
+                  ┌──────────────────────┐
+                  │ Channel Access Model │
+                  └──────────┬───────────┘
+                             │
+       ┌─────────────────────┼─────────────────────┬────────────────────┐
+       ▼                     ▼                     ▼                    ▼
+   [ COMPANY ]        [ DEPARTMENT ]            [ TEAM ]           [ PRIVATE ]
+  All Active         Employees where        Employees where     Explicit records
+  Employees          employee.dept_id       employee.team_id    in channel_members
+  have access        = channel.dept_id      = channel.team_id   table
+```
+
+- **Company Channels** (e.g. `#general`, `#all-hands`): Accessible company-wide to all active employees.
+- **Department Channels** (e.g. `#operations-general`, `#warehouse-ops`): Dynamically accessible by checking `current_user.employee.department_id = channel.department_id`.
+- **Team Channels** (e.g. `#blr-hub-dispatch`): Dynamically accessible by checking `current_user.employee.team_id = channel.team_id`.
+- **Private Channels** (e.g. `#lead-execs`): Requires explicit membership records in `channel_members`.
+
+---
+
+## 5. Announcement Targeting Model
+
+Announcements support granular targeting without bloated recipient tables:
+- **MVP Targeting**: Evaluated via `audience_type` (`ALL`, `DEPARTMENT`, `TEAM`, `ROLE`, `INDIVIDUAL`, `ALL_EMPLOYEES`) along with `department_id`, `team_id`, `target_role_id`, and `target_location`.
+- **Read & Acknowledgement Non-Repudiation**: `announcement_reads` stores exactly one record per user per announcement with `read_at` and `acknowledged_at`.
+- **Future Expansion**: Direct individual and complex targeting criteria can be resolved dynamically at query time using employee directory attributes.
+
+---
+
+## 6. Indexing & Query Optimization Strategy
+
+| Table | Index Name | Columns / Condition | Workload / Query Path |
 | :--- | :--- | :--- | :--- |
 | `employees` | `idx_employees_dept_id` | `(department_id)` | Department directory lookups |
 | `employees` | `idx_employees_team_id` | `(team_id)` | Team membership filter |
 | `employees` | `idx_employees_manager_id` | `(manager_id)` | Org hierarchy tree queries |
 | `employees` | `idx_employees_status` | `(status)` | Active vs offboarded directory search |
 | `employees` | `idx_employees_location` | `(location)` | Hub-level location broadcast/search |
-| `users` | `idx_users_employee_id` | `(employee_id)` | Profile-to-Auth 1:1 join |
 | `users` | `idx_users_status` | `(status)` | Authentication gate checks |
 | `conversations` | `idx_conversations_last_msg_at` | `(last_message_at DESC NULLS LAST)` | User chat inbox sorting |
 | `conversation_members` | `idx_conversation_members_user_id`| `(user_id)` | "My Conversations" list |
@@ -393,55 +428,22 @@ Indexes are created intentionally to optimize critical path queries without intr
 
 ---
 
-## 5. Key Architecture & Design Trade-offs
+## 7. Security & Offboarding Considerations
 
-### 5.1. Normalization: `users` vs `employees` Separation
-- **Decision**: `employees` stores corporate profile information (designation, team, department, location, supervisor, joining date), whereas `users` stores authentication credentials and security state (`password_hash`, `failed_login_attempts`, `locked_until`).
-- **Rationale**:
-  1. **Separation of Concerns**: Authentication infrastructure (Spring Security) operates cleanly on the `users` table without needing heavy employee directory fields.
-  2. **Lifecycle Independence**: In enterprise logistics, an employee profile may be pre-created during HR onboarding before an authentication account is provisioned, or an account may be suspended while the HR profile remains active for historical records.
-  3. **Data Integrity**: Both tables maintain a unique constraint on `email`, and `users.employee_id` has a strict unique foreign key to ensure 1-to-1 consistency.
-
-### 5.2. Unified Message Model with Container Integrity
-- **Decision**: Single `messages` table supporting both `conversations` (direct/group chats) and `channels` (workspace/department channels) using a mutual exclusivity CHECK constraint:
-  ```sql
-  CONSTRAINT chk_message_container CHECK (
-      (conversation_id IS NOT NULL AND channel_id IS NULL) OR
-      (conversation_id IS NULL AND channel_id IS NOT NULL)
-  )
-  ```
-- **Rationale**:
-  - Eliminates duplicate table structures for `conversation_messages` and `channel_messages`.
-  - Simplifies attachment handling, mentions, search indexing, and real-time WebSocket broadcast payloads across both chat contexts.
-  - Partial filtered indexes guarantee $O(\log N)$ paginated message queries.
-
-### 5.3. Circular Foreign Key Handling (`departments.manager_id` & `teams.team_lead_id`)
-- **Decision**: Tables are created first without the manager/lead foreign keys, and foreign keys are added via `ALTER TABLE ... ADD CONSTRAINT` pointing to `employees(id) ON DELETE SET NULL`.
-- **Rationale**: Avoids circular dependency errors during schema creation and Flyway migration execution while maintaining strict referential integrity.
-
-### 5.4. Offboarding Support
-When an employee leaves the company:
-1. `users.status` is set to `'INACTIVE'` / `'LOCKED'`, immediately revoking JWT/session authorization.
-2. `employees.status` is set to `'TERMINATED'` / `'RESIGNED'`, and `exit_date` is stamped.
-3. Because foreign keys use `ON DELETE RESTRICT` or `SET NULL` on historic records (announcements, documents, audit logs), all historical documents, audit trails, and announcements authored by the employee remain intact and compliant.
+1. **User Account Separation**:
+   - `users.employee_id` is unique and mandatory (`NOT NULL UNIQUE REFERENCES employees(id)`).
+   - Deactivating a user (`users.status = 'INACTIVE'`) immediately revokes access while preserving all employee directory and audit data.
+2. **Audit Immutability**:
+   - Application service accounts should only have `INSERT` and `SELECT` privileges on `audit_logs`.
+   - The PostgreSQL trigger `trg_audit_logs_immutability` blocks any `UPDATE` or `DELETE` at the database engine level.
+3. **No Stored Plaintext Credentials**:
+   - Passwords stored only as salted BCrypt / Argon2 hashes.
 
 ---
 
-## 6. RBAC & Security Model
+## 8. Authoritative File Locations
 
-The database implements full Role-Based Access Control:
-- **Roles**: `SUPER_ADMIN`, `HR_ADMIN`, `MANAGER`, `TEAM_LEADER`, `EMPLOYEE`.
-- **Permissions**: Domain-specific capabilities (`MANAGE_EMPLOYEES`, `CREATE_ANNOUNCEMENT`, `MANAGE_CHANNEL`, `MANAGE_DOCUMENTS`, `VIEW_AUDIT_LOGS`, etc.).
-- **Evaluation**:
-  ```
-  User -> User_Roles -> Roles -> Role_Permissions -> Permissions
-  ```
-- All administrative and destructive actions generate an immutable record in `audit_logs` with actor details, timestamps, IP addresses, and JSON context snapshots.
-
----
-
-## 7. Migration & Seed Locations
-
-- **Flyway Relational Schema Migration**: `database/migrations/V1__initial_schema.sql` (and synced to `backend/src/main/resources/db/migration/V1__initial_schema.sql`).
-- **Development Seed Data**: `database/seeds/development/seed_data.sql`.
-- **Mermaid ER Diagram**: `docs/database/er-diagram.mmd`.
+- **Flyway Relational Schema Migration**: `backend/src/main/resources/db/migration/V1__initial_schema.sql`
+- **Development Seed Data**: `database/seeds/development/seed_data.sql`
+- **Mermaid ER Diagram**: `docs/database/er-diagram.mmd`
+- **Architecture Documentation**: `docs/database/database-design.md`
