@@ -1,5 +1,7 @@
 # LogiConnect
 
+[![LogiConnect CI](https://github.com/KISHOR403/LogiConnect/actions/workflows/ci.yml/badge.svg)](https://github.com/KISHOR403/LogiConnect/actions/workflows/ci.yml)
+
 Enterprise Communication & Collaboration Platform for Logistics Operations.
 
 ---
