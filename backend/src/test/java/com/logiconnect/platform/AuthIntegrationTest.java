@@ -16,6 +16,10 @@ import com.logiconnect.platform.department.repository.DepartmentRepository;
 import com.logiconnect.platform.employee.entity.Employee;
 import com.logiconnect.platform.employee.entity.EmployeeStatus;
 import com.logiconnect.platform.employee.repository.EmployeeRepository;
+import com.logiconnect.platform.conversation.repository.ConversationMemberRepository;
+import com.logiconnect.platform.conversation.repository.ConversationRepository;
+import com.logiconnect.platform.message.repository.MessageAttachmentRepository;
+import com.logiconnect.platform.message.repository.MessageRepository;
 import com.logiconnect.platform.permission.entity.Permission;
 import com.logiconnect.platform.permission.repository.PermissionRepository;
 import com.logiconnect.platform.role.entity.Role;
@@ -93,6 +97,18 @@ class AuthIntegrationTest {
     private AuditLogRepository auditLogRepository;
 
     @Autowired
+    private ConversationRepository conversationRepository;
+
+    @Autowired
+    private ConversationMemberRepository conversationMemberRepository;
+
+    @Autowired
+    private MessageRepository messageRepository;
+
+    @Autowired
+    private MessageAttachmentRepository attachmentRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -107,6 +123,10 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        attachmentRepository.deleteAll();
+        messageRepository.deleteAll();
+        conversationMemberRepository.deleteAll();
+        conversationRepository.deleteAll();
         userSessionRepository.deleteAll();
         auditLogRepository.deleteAll();
         userRepository.deleteAll();
