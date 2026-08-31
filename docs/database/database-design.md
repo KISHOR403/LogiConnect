@@ -157,6 +157,18 @@ Many-to-many junction between roles and granular permissions.
 - `assigned_at` (TIMESTAMPTZ, NOT NULL).
 - **Primary Key**: `(role_id, permission_id)`.
 
+#### `user_sessions`
+Active refresh token sessions tracking authentication state, rotation, and revocation.
+- `id` (UUID, PK): Unique session ID.
+- `user_id` (UUID, NOT NULL, FK &rarr; `users.id` ON DELETE CASCADE): User owning this session.
+- `refresh_token_hash` (VARCHAR(64), NOT NULL, UNIQUE): SHA-256 hash of issued refresh token (raw token is never stored in DB).
+- `device_info` (VARCHAR(255)): User device, OS, or browser identifier.
+- `ip_address` (VARCHAR(45)): Client IP address (IPv4/IPv6).
+- `expires_at` (TIMESTAMPTZ, NOT NULL): Refresh token expiration timestamp.
+- `revoked_at` (TIMESTAMPTZ): Revocation timestamp (for explicit logout or rotation replay detection).
+- `last_used_at` (TIMESTAMPTZ, NOT NULL): Timestamp when token was last refreshed.
+- `created_at` / `updated_at` (TIMESTAMPTZ, NOT NULL).
+
 ---
 
 ### Domain 3: Communication & Messaging (6 Tables)

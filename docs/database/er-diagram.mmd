@@ -22,6 +22,7 @@ erDiagram
     EMPLOYEES ||--o| TEAMS : "leads team"
 
     USERS ||--o{ USER_ROLES : "assigned"
+    USERS ||--o{ USER_SESSIONS : "owns"
     ROLES ||--o{ USER_ROLES : "granted to"
     ROLES ||--o{ ROLE_PERMISSIONS : "includes"
     PERMISSIONS ||--o{ ROLE_PERMISSIONS : "assigned to"
@@ -137,6 +138,19 @@ erDiagram
         uuid role_id PK,FK
         timestamptz assigned_at
         uuid assigned_by FK
+    }
+
+    USER_SESSIONS {
+        uuid id PK
+        uuid user_id FK
+        varchar refresh_token_hash UK
+        varchar device_info
+        varchar ip_address
+        timestamptz expires_at
+        timestamptz revoked_at
+        timestamptz last_used_at
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     ROLE_PERMISSIONS {

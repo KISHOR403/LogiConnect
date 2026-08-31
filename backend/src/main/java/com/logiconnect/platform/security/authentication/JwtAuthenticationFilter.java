@@ -52,13 +52,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (JwtTokenProvider.TOKEN_TYPE_ACCESS.equalsIgnoreCase(tokenType)) {
                     UUID userId = jwtTokenProvider.getUserIdFromToken(jwt);
                     String employeeCode = jwtTokenProvider.getEmployeeCodeFromToken(jwt);
+                    String email = jwtTokenProvider.getEmailFromToken(jwt);
                     Set<String> roles = jwtTokenProvider.getRolesFromToken(jwt);
                     Set<String> permissions = jwtTokenProvider.getPermissionsFromToken(jwt);
 
                     UserPrincipal userPrincipal = UserPrincipal.create(
                             userId,
                             employeeCode,
-                            userId.toString(), // Principal username identifier
+                            email != null ? email : userId.toString(),
                             null,
                             null,
                             null,

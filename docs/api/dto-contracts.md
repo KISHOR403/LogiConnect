@@ -97,14 +97,16 @@ Standard error envelope returned for all 4xx and 5xx responses.
 #### `LoginRequest`
 | Field | Type | Required | Constraints |
 | :--- | :--- | :--- | :--- |
-| `email` | `string` | Yes | `@NotBlank`, `@Email`, max 255 |
-| `password` | `string` | Yes | `@NotBlank`, max 100 |
+| `employeeCode` | `string` | Yes | `@NotBlank`, max 255. Accepts either Employee Code (e.g. `EMP10001`) or official corporate email (e.g. `priya.sharma@logiconnect.internal`). |
+| `password` | `string` | Yes | `@NotBlank`, max 128 |
+| `deviceInfo` | `string` | No | Optional client/device name (e.g. `"Chrome 128 on macOS"`) |
 
 *Example Request:*
 ```json
 {
-  "email": "priya.sharma@logiconnect.internal",
-  "password": "SecurePassword@123"
+  "employeeCode": "EMP10001",
+  "password": "SecurePassword@123",
+  "deviceInfo": "Chrome 128 on Windows 11"
 }
 ```
 

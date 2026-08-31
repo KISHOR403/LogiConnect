@@ -34,6 +34,7 @@ public class JwtTokenProvider {
 
     public static final String CLAIM_USER_ID = "uid";
     public static final String CLAIM_EMPLOYEE_CODE = "emp_code";
+    public static final String CLAIM_EMAIL = "email";
     public static final String CLAIM_ROLES = "roles";
     public static final String CLAIM_PERMISSIONS = "permissions";
     public static final String CLAIM_TOKEN_TYPE = "typ";
@@ -72,10 +73,12 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtProperties.getAccessExpirationMs());
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(principal.getId().toString())
                 .issuer(jwtProperties.getIssuer())
                 .claim(CLAIM_USER_ID, principal.getId().toString())
                 .claim(CLAIM_EMPLOYEE_CODE, principal.getEmployeeCode())
+                .claim(CLAIM_EMAIL, principal.getEmail())
                 .claim(CLAIM_ROLES, principal.getRoles())
                 .claim(CLAIM_PERMISSIONS, principal.getPermissions())
                 .claim(CLAIM_TOKEN_TYPE, TOKEN_TYPE_ACCESS)
@@ -93,6 +96,7 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtProperties.getRefreshExpirationMs());
 
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(principal.getId().toString())
                 .issuer(jwtProperties.getIssuer())
                 .claim(CLAIM_USER_ID, principal.getId().toString())
@@ -173,6 +177,13 @@ public class JwtTokenProvider {
         Claims claims = getClaimsFromToken(token);
         List<String> roles = claims.get(CLAIM_ROLES, List.class);
         return roles != null ? Set.copyOf(roles) : Collections.emptySet();
+    }
+
+    /**
+     * Extract Email from token claims.
+     */
+    public String getEmailFromToken(String token) {
+        return getClaimsFromToken(token).get(CLAIM_EMAIL, String.class);
     }
 
     /**

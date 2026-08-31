@@ -101,6 +101,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handle general ValidationException from validation constraints.
+     */
+    @ExceptionHandler(jakarta.validation.ValidationException.class)
+    public ResponseEntity<ApiError> handleGeneralValidationException(jakarta.validation.ValidationException ex, HttpServletRequest request) {
+        log.warn("Validation failure for request to {}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiError error = ApiError.of(
+                ErrorCode.VALIDATION_FAILED,
+                ex.getMessage() != null ? ex.getMessage() : "Validation failed.",
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
      * Handle malformed JSON body or unparseable payloads.
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)

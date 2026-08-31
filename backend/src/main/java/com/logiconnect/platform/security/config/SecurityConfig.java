@@ -103,12 +103,10 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html"
                         ).permitAll()
-                        // Public Authentication Endpoints (Step 6 placeholder paths)
+                        // Public Authentication Endpoints
                         .requestMatchers(
                                 "/auth/login",
-                                "/auth/refresh",
-                                "/auth/forgot-password",
-                                "/auth/reset-password"
+                                "/auth/refresh"
                         ).permitAll()
                         // All other API endpoints require authenticated JWT
                         .anyRequest().authenticated()
