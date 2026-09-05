@@ -30,6 +30,17 @@ export function formatRelativeTime(dateInput: string | number | Date | undefined
   });
 }
 
+export function formatTime(dateInput: string | number | Date | undefined | null): string {
+  if (!dateInput) return '';
+  const date = typeof dateInput === 'string' || typeof dateInput === 'number' ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return '';
+
+  return date.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function formatDateTime(dateInput: string | number | Date | undefined | null): string {
   if (!dateInput) return '';
   const date = typeof dateInput === 'string' || typeof dateInput === 'number' ? new Date(dateInput) : dateInput;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -24,6 +24,7 @@ import { NavSection } from '@/types/navigation';
 import { ROUTES } from '@/lib/constants/routes';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { isAdmin } from '@/lib/auth/permissions';
+import { notificationApi } from '@/features/notifications/api/notificationApi';
 import { cn } from '@/lib/utils/cn';
 
 export interface SidebarProps {
@@ -36,8 +37,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMobileClose,
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
   const { user } = useAuth();
   const userIsAdmin = isAdmin(user);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnread = async () => {
+      try {
+        const count = await notificationApi.getUnreadCount();
+        if (isMounted) setUnreadNotifications(count);
+      } catch {
+        // Silently fail if unauthorized or offline
+      }
+    };
+
+    fetchUnread();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const mainSections: NavSection[] = [
     {
@@ -98,6 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Notifications',
           path: ROUTES.NOTIFICATIONS,
           icon: Bell,
+          badge: unreadNotifications > 0 ? unreadNotifications : undefined,
         },
       ],
     },
@@ -153,7 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800 shrink-0">
         <Link
           to={ROUTES.DASHBOARD}
-          className="flex items-center gap-3 focus-ring rounded-lg overflow-hidden"
+          className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded-lg p-1"
           onClick={onMobileClose}
         >
           <div className="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center text-white shrink-0 shadow-md">
@@ -174,7 +194,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Mobile close button */}
         <button
           onClick={onMobileClose}
-          className="p-1.5 text-slate-400 hover:text-white rounded-lg lg:hidden"
+          className="p-1.5 text-slate-400 hover:text-white rounded-lg lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           aria-label="Close sidebar"
         >
           <X size={18} />
@@ -183,7 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Desktop Collapse Toggle */}
         <button
           onClick={() => setIsCollapsed((prev) => !prev)}
-          className="hidden lg:flex p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus-ring"
+          className="hidden lg:flex p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
@@ -191,7 +211,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
+      <nav aria-label="Main Navigation" className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
         {mainSections.map((section) => (
           <div key={section.id} className="space-y-1">
             {!isCollapsed && section.title && (
@@ -229,14 +249,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
         )}
-      </div>
+      </nav>
 
       {/* Footer / Environment Badge */}
       <div className="p-3 border-t border-slate-800 text-[11px] text-slate-400 shrink-0">
         {!isCollapsed ? (
           <div className="flex items-center justify-between">
-            <span className="font-medium">Logistics Core</span>
-            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+            <span className="font-medium text-slate-400">Logistics Core</span>
+            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px] border border-slate-700">
               v1.0
             </span>
           </div>

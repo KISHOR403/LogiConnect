@@ -15,6 +15,7 @@ export const NavItem: React.FC<NavItemProps> = ({
   onNavigate,
 }) => {
   const Icon = item.icon;
+  const hasBadge = item.badge !== undefined && (typeof item.badge === 'number' ? item.badge > 0 : Boolean(item.badge));
 
   return (
     <NavLink
@@ -24,20 +25,21 @@ export const NavItem: React.FC<NavItemProps> = ({
       title={isCollapsed ? item.label : undefined}
       className={({ isActive }) =>
         cn(
-          'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 select-none focus-ring',
+          'group relative flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 select-none',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-1 focus-visible:ring-offset-slate-900',
           isActive
-            ? 'bg-brand-50 text-brand-700 font-semibold shadow-xs'
-            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80',
+            ? 'bg-slate-800 text-white font-semibold shadow-xs'
+            : 'text-slate-300 hover:text-white hover:bg-slate-800/60',
           isCollapsed ? 'justify-center px-2' : ''
         )
       }
     >
       {({ isActive }) => (
         <>
-          {/* Left active border indicator */}
+          {/* Active border indicator */}
           {isActive && (
             <span
-              className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-brand-600 rounded-r-full"
+              className="absolute left-0 top-1.5 bottom-1.5 w-1 bg-brand-500 rounded-r-full"
               aria-hidden="true"
             />
           )}
@@ -46,7 +48,7 @@ export const NavItem: React.FC<NavItemProps> = ({
             size={18}
             className={cn(
               'shrink-0 transition-colors',
-              isActive ? 'text-brand-600' : 'text-slate-400 group-hover:text-slate-600'
+              isActive ? 'text-brand-400' : 'text-slate-400 group-hover:text-slate-200'
             )}
             aria-hidden="true"
           />
@@ -55,13 +57,13 @@ export const NavItem: React.FC<NavItemProps> = ({
             <span className="flex-1 truncate text-left">{item.label}</span>
           )}
 
-          {!isCollapsed && item.badge !== undefined && (
+          {!isCollapsed && hasBadge && (
             <span
               className={cn(
                 'ml-auto px-2 py-0.5 text-xs font-semibold rounded-full shrink-0',
                 isActive
-                  ? 'bg-brand-200 text-brand-800'
-                  : 'bg-slate-200 text-slate-700 group-hover:bg-slate-300'
+                  ? 'bg-brand-500/20 text-brand-300 border border-brand-500/30'
+                  : 'bg-slate-800 text-slate-300 border border-slate-700 group-hover:border-slate-600'
               )}
             >
               {item.badge}
@@ -69,8 +71,8 @@ export const NavItem: React.FC<NavItemProps> = ({
           )}
 
           {/* Collapsed mode badge dot */}
-          {isCollapsed && item.badge !== undefined && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand-600 ring-2 ring-white" />
+          {isCollapsed && hasBadge && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand-500 ring-2 ring-slate-900" />
           )}
         </>
       )}
